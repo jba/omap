@@ -19,10 +19,10 @@ import (
 type Interface[K, V any] interface {
 	All() iter.Seq2[K, V]
 	Delete(key K)
-	DeleteRange(lo, hi K)
+	// DeleteRange(lo, hi K)
 	Get(key K) (V, bool)
 	Scan(lo, hi K) iter.Seq2[K, V]
-	Set(key K, val V)
+	Set(key K, val V) (V, bool)
 	root() **node[K, V]
 }
 
@@ -35,7 +35,9 @@ func permute(m Interface[int, int], n int) (perm, slice []int) {
 	}
 	// Overwrite-Set half the entries.
 	for i, x := range perm[:len(perm)/2] {
-		m.Set(2*x+1, i+100)
+		old, added := m.Set(2*x+1, i+100)
+		assert(!added)
+		assert(old == i+1)
 		slice[2*x+1] = i + 100
 	}
 	return perm, slice
@@ -63,9 +65,9 @@ func test(t *testing.T, f func(*testing.T, func() Interface[int, int])) {
 	t.Run("Map", func(t *testing.T) {
 		f(t, func() Interface[int, int] { return new(Map[int, int]) })
 	})
-	t.Run("MapFunc", func(t *testing.T) {
-		f(t, func() Interface[int, int] { return NewMapFunc[int, int](cmp.Compare) })
-	})
+	// t.Run("MapFunc", func(t *testing.T) {
+	// 	f(t, func() Interface[int, int] { return NewMapFunc[int, int](cmp.Compare) })
+	// })
 }
 
 func TestGet(t *testing.T) {
@@ -80,6 +82,25 @@ func TestGet(t *testing.T) {
 				}
 			}
 		}
+	})
+}
+
+func TestSet(t *testing.T) {
+	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		check := func(gotOld int, gotAdded bool) func(int, bool) {
+			return func(wantOld int, wantAdded bool) {
+				t.Helper()
+				if gotOld != wantOld || gotAdded != wantAdded {
+					t.Errorf("got %d, %t, want %d, %t", gotOld, gotAdded, wantOld, wantAdded)
+				}
+			}
+		}
+
+		m := newMap()
+		check(m.Set(1, 10))(0, true)
+		check(m.Set(2, 20))(0, true)
+		check(m.Set(1, 5))(10, false)
+		check(m.Set(1, 8))(5, false)
 	})
 }
 
@@ -170,34 +191,90 @@ func TestDelete(t *testing.T) {
 	})
 }
 
+type iRange[K, V any] interface {
+	Clear()
+}
+
+func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
+	switch m := m.(type) {
+	case *Map[K, V]:
+		return Range[K, V]{m: m, lo: lo, hi: hi}
+	default:
+		panic("unimp")
+	}
+}
+
 func TestDeleteRange(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		check := func(N int, blo, bhi bound[int], clearReverse bool) {
+			t.Helper()
+			m := newMap()
+			r := newRange(m, blo, bhi)
+			_, slice := permute(m, N)
+			if clearReverse {
+				newRange(m, bhi, blo).Clear()
+			}
+			newRange(m, blo, bhi).Clear()
+			var have []int
+			for k, _ := range m.All() {
+				have = append(have, k)
+			}
+			want := keep(slice, func(k int) bool { return !in(k, blo, bhi) })
+			if !slices.Equal(have, want) {
+				t.Errorf("N=%d, after Clear(%s), All() = %v, want %v", N, r, have, want)
+			}
+		}
+
 		for N := range 11 {
 			for hi := range 2*N + 1 {
-				for lo := range hi + 1 {
-					m := newMap()
-					_, slice := permute(m, N)
-					if lo < hi {
-						m.DeleteRange(hi, lo) // want no-op
-					}
-					m.DeleteRange(lo, hi)
-					var have []int
-					for k, _ := range m.All() {
-						have = append(have, k)
-					}
-					var want []int
-					for k, v := range slice {
-						if v != 0 && (k < lo || hi < k) {
-							want = append(want, k)
+				for _, bhi := range []bound[int]{including(hi), excluding(hi)} {
+					for lo := range hi + 1 {
+						for _, blo := range []bound[int]{including(lo), excluding(lo)} {
+							check(N, blo, bhi, lo < hi)
 						}
-					}
-					if !slices.Equal(have, want) {
-						t.Errorf("after DeleteRange(%d, %d), All() = %v, want %v", lo, hi, have, want)
 					}
 				}
 			}
+			for x := range 2*N + 1 {
+				check(N, including(x), inf(), false)
+				check(N, excluding(x), inf(), false)
+				check(N, inf(), including(x), false)
+				check(N, inf(), excluding(x), false)
+			}
+			check(N, inf(), inf(), false)
 		}
 	})
+}
+
+func inf() bound[int] { return bound[int]{} }
+
+func keep(s []int, f func(int) bool) []int {
+	var r []int
+	for k, v := range s {
+		if v != 0 && f(k) {
+			r = append(r, k)
+		}
+	}
+	return r
+
+}
+
+func in(n int, lo, hi bound[int]) bool {
+	if lo.present && ((lo.inclusive && n < lo.key) || (!lo.inclusive && n <= lo.key)) {
+		return false
+	}
+	if hi.present && ((hi.inclusive && n > hi.key) || (!hi.inclusive && n >= hi.key)) {
+		return false
+	}
+	return true
+}
+
+func TestIn(t *testing.T) {
+	// N=5, after DeleteRange((-∞, 3]), All() = [], want [1]
+	slice := []int{0, 1, 0, 3, 0, 5, 0, 7, 0, 9, 0, 11}
+	var blo bound[int]
+	bhi := including(3)
+	t.Log(keep(slice, func(k int) bool { return !in(k, blo, bhi) }))
 }
 
 func TestScanDelete(t *testing.T) {
@@ -269,7 +346,7 @@ func TestScanDeleteRange(t *testing.T) {
 									slice[k+4] = 0
 								}
 							}
-							m.DeleteRange(deleteLo, deleteHi)
+							newRange(m, including(deleteLo), including(deleteHi)).Clear()
 						}
 						have = append(have, k)
 					}

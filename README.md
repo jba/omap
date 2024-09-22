@@ -1,2 +1,3 @@
-Package omap implements an ordered map[K]V.
-See the [API reference](https://pkg.go.dev/rsc.io/omap).
+This is a fork of github.com/rsc/omap, whose import path is rsc.io/omap.
+
+It experiments with an alternative API.

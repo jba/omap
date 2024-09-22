@@ -13,6 +13,9 @@ package omap
 
 import (
 	"cmp"
+	"fmt"
+	"strings"
+	// "github.com/jba/omap/rng"
 	"iter"
 	"math/rand/v2"
 )
@@ -61,10 +64,25 @@ type omap[K, V any] interface {
 	// depending on how parent.key compares with key.
 	// If parent == nil, then pos is m.root().
 	find(key K) (pos **node[K, V], parent *node[K, V])
+
+	// TODO: remove by rewriting deleteRange.
+	get(K) (V, bool)
+	set(key K, val V)
+
+	clear()
 }
 
 func (m *Map[K, V]) root() **node[K, V]     { return &m._root }
 func (m *MapFunc[K, V]) root() **node[K, V] { return &m._root }
+
+func (m *Map[K, V]) clear()     { m.Clear() }
+func (m *MapFunc[K, V]) clear() { m.Clear() }
+
+func (m *Map[K, V]) get(k K) (V, bool)     { return m.Get(k) }
+func (m *MapFunc[K, V]) get(k K) (V, bool) { return m.Get(k) }
+
+func (m *Map[K, V]) set(k K, v V)     { m.Set(k, v) }
+func (m *MapFunc[K, V]) set(k K, v V) { m.Set(k, v) }
 
 // find looks up the key k in the map.
 // It returns the parent of k as well as the position where k would be attached.
@@ -124,24 +142,31 @@ func get[K, V any](m omap[K, V], key K) (V, bool) {
 }
 
 // Set sets m[key] = val.
-func (m *Map[K, V]) Set(key K, val V) {
-	set(m, key, val)
+// If the entry was present, Set returns the former value and false.
+// Otherwise it returns the zero value and true.
+func (m *Map[K, V]) Set(key K, val V) (old V, added bool) {
+	return set(m, key, val)
 }
 
 // Set sets m[key] = val.
-func (m *MapFunc[K, V]) Set(key K, val V) {
-	set(m, key, val)
+// If the entry was present, Set returns the former value and false.
+// Otherwise it returns the zero value and true.
+func (m *MapFunc[K, V]) Set(key K, val V) (old V, added bool) {
+	return set(m, key, val)
 }
 
-func set[K, V any](m omap[K, V], key K, val V) {
+func set[K, V any](m omap[K, V], key K, val V) (V, bool) {
 	pos, parent := m.find(key)
 	if x := *pos; x != nil {
+		old := x.val
 		x.val = val
-		return
+		return old, false
 	}
 	x := &node[K, V]{key: key, val: val, pri: rand.Uint64() | 1, parent: parent}
 	*pos = x
 	rotateUp(m, x)
+	var z V
+	return z, true
 }
 
 // rotateUp rotates x upward in the tree to correct any priority inversions.
@@ -156,12 +181,12 @@ func rotateUp[K, V any](m omap[K, V], x *node[K, V]) {
 	}
 }
 
-// Delete deletes m[key].
+// Delete deletes m[key] if it exists.
 func (m *Map[K, V]) Delete(key K) {
 	_delete(m, key)
 }
 
-// Delete deletes m[key].
+// Delete deletes m[key] if it exists.
 func (m *MapFunc[K, V]) Delete(key K) {
 	_delete(m, key)
 }
@@ -194,35 +219,168 @@ func _delete[K, V any](m omap[K, V], key K) {
 	x.pri = 0 // mark deleted
 }
 
-// DeleteRange deletes m[k] for all keys k satisfying lo ≤ k ≤ hi.
-func (m *Map[K, V]) DeleteRange(lo, hi K) {
-	if lo > hi {
-		return
-	}
-	deleteRange(m, lo, hi)
+// Min returns the minimum key in m and true.
+// If m is empty, the second return value is false.
+func (m *Map[K, V]) Min() (K, bool) {
+	return _min(m)
 }
 
-// DeleteRange deletes m[k] for all keys k satisfying lo ≤ k ≤ hi.
-func (m *MapFunc[K, V]) DeleteRange(lo, hi K) {
-	if m.cmp(lo, hi) > 0 {
-		return
-	}
-	deleteRange(m, lo, hi)
+// Min returns the minimum key in m and true.
+// If m is empty, the second return value is false.
+func (m *MapFunc[K, v]) Min() (K, bool) {
+	return _min(m)
 }
 
-func deleteRange[K, V any](m omap[K, V], lo, hi K) {
-	after := split(m, hi)
-	middle := split(m, lo)
+func _min[K, V any](m omap[K, V]) (K, bool) {
+	x := *m.root()
+	if x == nil {
+		var z K
+		return z, false
+	}
+	return x.min().key, true
+}
+
+// min returns the node in x's subtree with the smallest key.
+// x must not be nil.
+func (x *node[K, V]) min() *node[K, V] {
+	for x.left != nil {
+		x = x.left
+	}
+	return x
+}
+
+// Max returns the Maximum key in m and true.
+// If m is empty, the second return value is false.
+func (m *Map[K, V]) Max() (K, bool) {
+	return _max(m)
+}
+
+// Max returns the Maximum key in m and true.
+// If m is empty, the second return value is false.
+func (m *MapFunc[K, v]) Max() (K, bool) {
+	return _max(m)
+}
+
+func _max[K, V any](m omap[K, V]) (K, bool) {
+	x := *m.root()
+	if x == nil {
+		var z K
+		return z, false
+	}
+	return x.max().key, true
+}
+
+// max returns the node in x's subtree with the smallest key.
+// x must not be nil.
+func (x *node[K, V]) max() *node[K, V] {
+	for x.right != nil {
+		x = x.right
+	}
+	return x
+}
+
+// DeleteRange deletes m[k] for all keys in r.
+// func (m *Map[K, V]) DeleteRange(r rng.Range[K]) {
+// 	lo, ok := r.From()
+// 	if !ok {
+// 		lo = m.Min()
+// 	}
+// 	hi, ok := r.Below()
+// 	if !ok {
+// 		hi = m.Max()
+// 	}
+// 	if lo > hi {
+// 		return
+// 	}
+// 	deleteRange(m, lo, hi)
+// }
+
+// DeleteRange deletes m[k] for all keys in r.
+// func (m *MapFunc[K, V]) DeleteRange(r rng.Range[K]) {
+// 	if m.cmp(lo, hi) > 0 {
+// 		return
+// 	}
+// 	deleteRange(m, lo, hi)
+// }
+
+func deleteRange[K, V any](m omap[K, V], lo, hi bound[K]) {
+	// TODO: rewrite to avoid reinsertions.
+	switch {
+	case !lo.present && !hi.present:
+		m.clear()
+	case lo.present && hi.present:
+		loVal, loPresent := m.get(lo.key)
+		hiVal, hiPresent := m.get(hi.key)
+		deleteBetweenInclusive(m, lo.key, hi.key)
+		if !lo.inclusive && loPresent {
+			m.set(lo.key, loVal)
+		}
+		if !hi.inclusive && hiPresent {
+			m.set(hi.key, hiVal)
+		}
+	case lo.present:
+		deleteAbove(m, lo)
+	case hi.present:
+		deleteBelow(m, hi)
+	default:
+		panic("unreachable")
+	}
+}
+
+// Called deleteRange in rsc.io/omap.
+func deleteBetweenInclusive[K, V any](m omap[K, V], lo, hi K) {
+	after := splitExclusive(m, hi)
+	middle := splitExclusive(m, lo)
 	markDeleted(middle)
 	if after != nil {
+		// Add after to m.
+		// Both lo and all of after's keys are greater than any key in m.
 		pos, parent := m.find(lo)
+		assert(*pos == nil)
 		*pos = after
 		after.parent = parent
+		// after is now in the right place by key, but perhaps not by priority.
 		rotateUp(m, after)
 	}
 }
 
-func split[K, V any](m omap[K, V], key K) (before *node[K, V]) {
+func deleteAbove[K, V any](m omap[K, V], lo bound[K]) {
+	assert(lo.present)
+	val, ok := m.get(lo.key)
+	after := splitExclusive(m, lo.key)
+	markDeleted(after)
+	if !lo.inclusive && ok {
+		m.set(lo.key, val)
+	}
+}
+
+func deleteBelow[K, V any](m omap[K, V], hi bound[K]) {
+	assert(hi.present)
+	val, ok := m.get(hi.key)
+	after := splitExclusive(m, hi.key)
+	// Keep after, discard m.
+	markDeleted(*m.root())
+	*m.root() = after
+	if after != nil {
+		after.parent = nil
+	}
+	if !hi.inclusive && ok {
+		m.set(hi.key, val)
+	}
+}
+
+// // split behaves exactly like splitExclusive if include is false.
+// Otherwise, XXXXXXXXXXXXXjj
+// func split[K, V any](m omap[K, V], key K, include bool) (after *node[K, V]) {
+
+// }
+
+// splitExclusive splits m into two subtrees.
+// The returned node contains all keys > key.
+// m itself contains all keys < key.
+// key itself is not part of either tree.
+// Note that after's parent is not changed; it must be set by the caller.
+func splitExclusive[K, V any](m omap[K, V], key K) (after *node[K, V]) {
 	pos, parent := m.find(key)
 	if *pos == nil {
 		*pos = &node[K, V]{parent: parent}
@@ -266,9 +424,7 @@ func all[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
 		x := *m.root()
 		if x != nil {
-			for x.left != nil {
-				x = x.left
-			}
+			x = x.min()
 		}
 		for x != nil && yield(x.key, x.val) {
 			x = x.next(m)
@@ -325,11 +481,7 @@ func (x *node[K, V]) next(m omap[K, V]) *node[K, V] {
 		}
 		return x.parent
 	}
-	x = x.right
-	for x.left != nil {
-		x = x.left
-	}
-	return x
+	return x.right.min()
 }
 
 // findGE finds the node x in m with the least key k such that k ≥ key.
@@ -400,5 +552,153 @@ func rotateRight[K, V any](m omap[K, V], y *node[K, V]) {
 	} else {
 		// unreachable
 		panic("corrupt treap")
+	}
+}
+
+// Clear deletes m[k] for all keys in m.
+func (m *Map[K, V]) Clear() {
+	m._root = nil
+}
+
+// Clear deletes m[k] for all keys in m.
+func (m *MapFunc[K, V]) Clear() {
+	m._root = nil
+}
+
+// Clone returns a copy of m.
+func (m *Map[K, V]) Clone() *Map[K, V] {
+	return &Map[K, V]{_root: m._root.clone(nil)}
+}
+
+// Clone returns a copy of m.
+func (m *MapFunc[K, V]) Clone() *MapFunc[K, V] {
+	m2 := NewMapFunc[K, V](m.cmp)
+	m2._root = m._root.clone(nil)
+	return m2
+}
+
+func (x *node[K, V]) clone(parent *node[K, V]) *node[K, V] {
+	if x == nil {
+		return nil
+	}
+	c := *x
+	x2 := &c
+	x2.left = x.left.clone(x2)
+	x2.right = x.right.clone(x2)
+	x2.parent = parent
+	return x2
+}
+
+type Range[K cmp.Ordered, V any] struct {
+	m      *Map[K, V]
+	lo, hi bound[K]
+}
+
+func (r Range[K, V]) String() string {
+	var b strings.Builder
+	if !r.lo.present {
+		b.WriteString("(-∞")
+	} else {
+		if r.lo.inclusive {
+			b.WriteByte('[')
+		} else {
+			b.WriteByte('(')
+		}
+		fmt.Fprintf(&b, "%v", r.lo.key)
+	}
+	b.WriteString(", ")
+	if !r.hi.present {
+		b.WriteString("∞)")
+	} else {
+		fmt.Fprintf(&b, "%v", r.hi.key)
+		if r.hi.inclusive {
+			b.WriteByte(']')
+		} else {
+			b.WriteByte(')')
+		}
+	}
+	return b.String()
+}
+
+type bound[K any] struct {
+	key       K
+	present   bool
+	inclusive bool
+}
+
+func including[K any](k K) bound[K] {
+	return bound[K]{k, true, true}
+}
+
+func excluding[K any](k K) bound[K] {
+	return bound[K]{k, true, false}
+}
+
+func (m *Map[K, V]) From(lo K) Range[K, V]  { return Range[K, V]{m: m, lo: including(lo)} }
+func (m *Map[K, V]) Above(lo K) Range[K, V] { return Range[K, V]{m: m, lo: excluding(lo)} }
+func (m *Map[K, V]) To(hi K) Range[K, V]    { return Range[K, V]{m: m, hi: including(hi)} }
+func (m *Map[K, V]) Below(hi K) Range[K, V] { return Range[K, V]{m: m, hi: excluding(hi)} }
+
+func (r Range[K, V]) To(hi K) Range[K, V] {
+	if r.hi.present {
+		panic("range already has high bound")
+	}
+	r.hi = including(hi)
+	return r
+}
+
+func (r Range[K, V]) Below(hi K) Range[K, V] {
+	if r.hi.present {
+		panic("range already has high bound")
+	}
+	r.hi = excluding(hi)
+	return r
+}
+
+func (r Range[K, V]) inHi(k K) bool {
+	if !r.hi.present {
+		return true
+	}
+	if r.hi.inclusive {
+		return k <= r.hi.key
+	}
+	return k < r.hi.key
+}
+
+func (r Range[K, V]) Min() (K, bool) {
+	var m, z K
+	if !r.lo.present {
+		var ok bool
+		m, ok = _min(r.m)
+		if !ok {
+			return z, false
+		}
+	} else {
+		x, eq := findGE(r.m, r.lo.key)
+		if x == nil {
+			return z, false
+		}
+		if eq && !r.lo.inclusive {
+			x = x.next(r.m)
+			if x == nil {
+				return z, false
+			}
+		}
+		m = x.key
+	}
+	if r.inHi(m) {
+		return m, true
+	}
+	return z, false
+}
+
+// Clear deletes m[k] for all keys in r.
+func (r Range[K, V]) Clear() {
+	deleteRange(r.m, r.lo, r.hi)
+}
+
+func assert(b bool) {
+	if !b {
+		panic("assertion failed")
 	}
 }
