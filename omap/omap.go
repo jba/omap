@@ -1,5 +1,6 @@
 // XXXXXX
-// TODO: support Len with a root counter
+// TODO: support Len with a size in each node.
+// A root counter alone doesn't suffice for fast deleteRange.
 
 // Copyright 2024 The Go Authors. All rights reserved.
 
