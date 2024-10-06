@@ -1,4 +1,8 @@
+// XXXXXX
+// TODO: support Len with a root counter
+
 // Copyright 2024 The Go Authors. All rights reserved.
+
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -237,12 +241,12 @@ func _min[K, V any](m omap[K, V]) (K, bool) {
 		var z K
 		return z, false
 	}
-	return x.min().key, true
+	return x.minNode().key, true
 }
 
-// min returns the node in x's subtree with the smallest key.
+// minNode returns the node in x's subtree with the smallest key.
 // x must not be nil.
-func (x *node[K, V]) min() *node[K, V] {
+func (x *node[K, V]) minNode() *node[K, V] {
 	for x.left != nil {
 		x = x.left
 	}
@@ -267,41 +271,17 @@ func _max[K, V any](m omap[K, V]) (K, bool) {
 		var z K
 		return z, false
 	}
-	return x.max().key, true
+	return x.maxNode().key, true
 }
 
-// max returns the node in x's subtree with the smallest key.
+// maxNode returns the node in x's subtree with the smallest key.
 // x must not be nil.
-func (x *node[K, V]) max() *node[K, V] {
+func (x *node[K, V]) maxNode() *node[K, V] {
 	for x.right != nil {
 		x = x.right
 	}
 	return x
 }
-
-// DeleteRange deletes m[k] for all keys in r.
-// func (m *Map[K, V]) DeleteRange(r rng.Range[K]) {
-// 	lo, ok := r.From()
-// 	if !ok {
-// 		lo = m.Min()
-// 	}
-// 	hi, ok := r.Below()
-// 	if !ok {
-// 		hi = m.Max()
-// 	}
-// 	if lo > hi {
-// 		return
-// 	}
-// 	deleteRange(m, lo, hi)
-// }
-
-// DeleteRange deletes m[k] for all keys in r.
-// func (m *MapFunc[K, V]) DeleteRange(r rng.Range[K]) {
-// 	if m.cmp(lo, hi) > 0 {
-// 		return
-// 	}
-// 	deleteRange(m, lo, hi)
-// }
 
 func deleteRange[K, V any](m omap[K, V], lo, hi bound[K]) {
 	// TODO: rewrite to avoid reinsertions.
@@ -369,12 +349,6 @@ func deleteBelow[K, V any](m omap[K, V], hi bound[K]) {
 	}
 }
 
-// // split behaves exactly like splitExclusive if include is false.
-// Otherwise, XXXXXXXXXXXXXjj
-// func split[K, V any](m omap[K, V], key K, include bool) (after *node[K, V]) {
-
-// }
-
 // splitExclusive splits m into two subtrees.
 // The returned node contains all keys > key.
 // m itself contains all keys < key.
@@ -405,29 +379,56 @@ func markDeleted[K, V any](x *node[K, V]) {
 	markDeleted(x.right)
 }
 
-// All returns an iterator over the map m.
+// All returns an iterator over the map m from smallest to largest key.
 // If m is modified during the iteration, some keys may not be visited.
 // No keys will be visited multiple times.
 func (m *Map[K, V]) All() iter.Seq2[K, V] {
 	return all(m)
 }
 
-// All returns an iterator over the map m.
+// All returns an iterator over the map m from smallest to largest key.
 // If m is modified during the iteration, some keys may not be visited.
 // No keys will be visited multiple times.
 func (m *MapFunc[K, V]) All() iter.Seq2[K, V] {
 	return all(m)
 }
 
-// all returns an iterator over the map m, where *root is the root.
+// all returns an iterator over the map m from smallest to largest key, where *root is the root.
 func all[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
 		x := *m.root()
 		if x != nil {
-			x = x.min()
+			x = x.minNode()
 		}
 		for x != nil && yield(x.key, x.val) {
 			x = x.next(m)
+		}
+	}
+}
+
+// Backward returns an iterator over the map m from largest to smallest key.
+// If m is modified during the iteration, some keys may not be visited.
+// No keys will be visited multiple times.
+func (m *Map[K, V]) Backward() iter.Seq2[K, V] {
+	return backward(m)
+}
+
+// Backward returns an iterator over the map m from largest to smallest key.
+// If m is modified during the iteration, some keys may not be visited.
+// No keys will be visited multiple times.
+func (m *MapFunc[K, V]) Backward() iter.Seq2[K, V] {
+	return backward(m)
+}
+
+// backward returns an iterator over the map m from largest to smallest key, where *root is the root.
+func backward[K, V any](m omap[K, V]) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		x := *m.root()
+		if x != nil {
+			x = x.maxNode()
+		}
+		for x != nil && yield(x.key, x.val) {
+			x = x.prev(m)
 		}
 	}
 }
@@ -437,14 +438,14 @@ func all[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 //
 // If m is modified during the iteration, some keys may not be visited.
 // No keys will be visited multiple times.
-func (m *Map[K, V]) Scan(lo, hi K) iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		x, _ := findGE(m, lo)
-		for x != nil && x.key <= hi && yield(x.key, x.val) {
-			x = x.next(m)
-		}
-	}
-}
+// func (m *Map[K, V]) Scan(lo, hi K) iter.Seq2[K, V] {
+// 	return func(yield func(K, V) bool) {
+// 		x, _ := findGE(m, lo)
+// 		for x != nil && x.key <= hi && yield(x.key, x.val) {
+// 			x = x.next(m)
+// 		}
+// 	}
+// }
 
 // Scan returns an iterator over the map m
 // limited to keys k satisfying lo ≤ k ≤ hi.
@@ -481,7 +482,31 @@ func (x *node[K, V]) next(m omap[K, V]) *node[K, V] {
 		}
 		return x.parent
 	}
-	return x.right.min()
+	return x.right.minNode()
+}
+
+// prev returns the predecessor node of x in the treap,
+// even if x has been removed from the treap.
+// x must not be nil.
+func (x *node[K, V]) prev(m omap[K, V]) *node[K, V] {
+	if x.pri == 0 {
+		// x has been deleted.
+		// Find where x.key would be in the current tree.
+		var eq bool
+		x, eq = findLE(m, x.key)
+		if !eq {
+			// The new x is already less than the old x.key.
+			return x
+		}
+	}
+
+	if x.left == nil {
+		for x.parent != nil && x.parent.left == x {
+			x = x.parent
+		}
+		return x.parent
+	}
+	return x.left.maxNode()
 }
 
 // findGE finds the node x in m with the least key k such that k ≥ key.
@@ -497,6 +522,24 @@ func findGE[K, V any](m omap[K, V], key K) (x *node[K, V], eq bool) {
 		return parent, false
 	}
 	return parent.next(m), false
+}
+
+// findLE finds the node x in m with the greatest key k such that k ≤ key.
+func findLE[K, V any](m omap[K, V], key K) (x *node[K, V], eq bool) {
+	pos, parent := m.find(key)
+	if *pos != nil {
+		return *pos, true
+	}
+	if parent == nil {
+		return nil, false
+	}
+	if pos == &parent.right {
+		return parent, false
+	}
+	// Deleted nodes are detached from the tree, so the parent cannot be deleted
+	// there will be no infinite recursion.
+	assert(parent.pri != 0)
+	return parent.prev(m), false
 }
 
 // rotateLeft rotates the subtree rooted at node x.
@@ -666,35 +709,74 @@ func (r Range[K, V]) inHi(k K) bool {
 }
 
 func (r Range[K, V]) Min() (K, bool) {
-	var m, z K
-	if !r.lo.present {
-		var ok bool
-		m, ok = _min(r.m)
-		if !ok {
-			return z, false
-		}
-	} else {
-		x, eq := findGE(r.m, r.lo.key)
-		if x == nil {
-			return z, false
-		}
-		if eq && !r.lo.inclusive {
-			x = x.next(r.m)
-			if x == nil {
-				return z, false
-			}
-		}
-		m = x.key
-	}
-	if r.inHi(m) {
-		return m, true
+	var z K
+	if x := r.minNode(); x != nil {
+		return x.key, true
 	}
 	return z, false
+}
+
+// minNode returns the node with the smallest key in r,
+// or nil if r is empty.
+func (r Range[K, V]) minNode() *node[K, V] {
+	x := *r.m.root()
+	if x == nil {
+		return nil
+	}
+	if !r.lo.present {
+		return x.minNode()
+	}
+	n, eq := findGE(r.m, r.lo.key)
+	if eq && !r.lo.inclusive {
+		n = n.next(r.m)
+	}
+	if n == nil || !r.inHi(n.key) {
+		return nil
+	}
+	return n
+}
+
+// maxNode returns the node with the largest key in r,
+// or nil if r is empty.
+func (r Range[K, V]) maxNode() *node[K, V] {
+	x := *r.m.root()
+	if x == nil {
+		return nil
+	}
+	if !r.lo.present {
+		return x.minNode()
+	}
+	n, eq := findLE(r.m, r.hi.key)
+	if eq && !r.lo.inclusive {
+		n = n.next(r.m)
+	}
+	if n == nil || !r.inHi(n.key) {
+		return nil
+	}
+	return n
 }
 
 // Clear deletes m[k] for all keys in r.
 func (r Range[K, V]) Clear() {
 	deleteRange(r.m, r.lo, r.hi)
+}
+
+func (r Range[K, V]) All() iter.Seq2[K, V] {
+	x := *r.m.root()
+	if !r.lo.present {
+		x = x.minNode()
+	} else {
+		n, eq := findGE(r.m, r.lo.key)
+		if eq && !r.lo.inclusive {
+			n = n.next(r.m)
+		}
+		x = n
+	}
+	return func(yield func(K, V) bool) {
+		for x != nil && r.inHi(x.key) && yield(x.key, x.val) {
+			x = x.next(r.m)
+		}
+	}
 }
 
 func assert(b bool) {
