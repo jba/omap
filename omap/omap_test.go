@@ -20,7 +20,6 @@ type Interface[K, V any] interface {
 	All() iter.Seq2[K, V]
 	Backward() iter.Seq2[K, V]
 	Delete(key K)
-	// DeleteRange(lo, hi K)
 	Get(key K) (V, bool)
 	Set(key K, val V) (V, bool)
 	Min() (K, bool)
@@ -230,9 +229,51 @@ func TestAllRange(t *testing.T) {
 			m := newMap()
 			_, slice := permute(m, N)
 			for hi := range slice {
-				for _, bhi := range []bound[int]{including(hi), excluding(hi)} {
+				for _, bhi := range []bound[int]{including(hi), excluding(hi), inf()} {
 					for lo := range hi + 1 {
-						for _, blo := range []bound[int]{including(lo), excluding(lo)} {
+						for _, blo := range []bound[int]{including(lo), excluding(lo), inf()} {
+							check(m, slice, blo, bhi)
+						}
+					}
+				}
+			}
+		}
+	})
+}
+
+func TestBackwardRange(t *testing.T) {
+	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		check := func(m Interface[int, int], slice []int, blo, bhi bound[int]) {
+			var have []int
+			r := newRange(m, blo, bhi)
+			for k, v := range r.Backward() {
+				if v != slice[k] {
+					t.Errorf("Backward(%s) returned %d, %d want %d, %d", r, k, v, k, slice[k])
+				}
+				have = append(have, k)
+				if len(have) > len(slice)+5 { // too many; looping?
+					break
+				}
+			}
+			var want []int
+			for k, v := range slice {
+				if v != 0 && in(k, blo, bhi) {
+					want = append(want, k)
+				}
+			}
+			slices.Reverse(want)
+			if !slices.Equal(have, want) {
+				t.Errorf("Backward(%s) = %v, want %v", r, have, want)
+			}
+		}
+
+		for N := range 11 {
+			m := newMap()
+			_, slice := permute(m, N)
+			for hi := range slice {
+				for _, bhi := range []bound[int]{including(hi), excluding(hi), inf()} {
+					for lo := range hi + 1 {
+						for _, blo := range []bound[int]{including(lo), excluding(lo), inf()} {
 							check(m, slice, blo, bhi)
 						}
 					}
@@ -311,7 +352,7 @@ func TestDeleteRange(t *testing.T) {
 	})
 }
 
-func TestScanDeleteRange(t *testing.T) {
+func TestAllDeleteRange(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
 		for _, mode := range []string{"prev", "current", "next"} {
 			for N := range 8 {
@@ -358,9 +399,31 @@ func TestScanDeleteRange(t *testing.T) {
 	})
 }
 
+func TestRangeString(t *testing.T) {
+	m := newMap(nil)
+	for _, test := range []struct {
+		r    iRange[int, int]
+		want string
+	}{
+		{newRange(m, inf(), inf()), "(-∞, ∞)"},
+		{newRange(m, including(1), inf()), "[1, ∞)"},
+		{newRange(m, inf(), excluding(3)), "(-∞, 3)"},
+		{newRange(m, including(1), including(3)), "[1, 3]"},
+		{newRange(m, including(1), excluding(3)), "[1, 3)"},
+		{newRange(m, excluding(1), including(3)), "(1, 3]"},
+		{newRange(m, excluding(1), excluding(3)), "(1, 3)"},
+	} {
+		got := fmt.Sprint(test.r)
+		if got != test.want {
+			t.Errorf("%v: got %q, want %q", test.r, got, test.want)
+		}
+	}
+}
+
 type iRange[K, V any] interface {
 	Clear()
 	All() iter.Seq2[K, V]
+	Backward() iter.Seq2[K, V]
 }
 
 func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {

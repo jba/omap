@@ -1,6 +1,7 @@
 // XXXXXX
 // TODO: support Len with a size in each node.
 // A root counter alone doesn't suffice for fast deleteRange.
+// TODO: Range.Backward
 
 // Copyright 2024 The Go Authors. All rights reserved.
 
@@ -434,33 +435,19 @@ func backward[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 	}
 }
 
-// Scan returns an iterator over the map m
-// limited to keys k satisfying lo ≤ k ≤ hi.
-//
-// If m is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
-// func (m *Map[K, V]) Scan(lo, hi K) iter.Seq2[K, V] {
+// // Scan returns an iterator over the map m
+// // limited to keys k satisfying lo ≤ k ≤ hi.
+// //
+// // If m is modified during the iteration, some keys may not be visited.
+// // No keys will be visited multiple times.
+// func (m *MapFunc[K, V]) Scan(lo, hi K) iter.Seq2[K, V] {
 // 	return func(yield func(K, V) bool) {
 // 		x, _ := findGE(m, lo)
-// 		for x != nil && x.key <= hi && yield(x.key, x.val) {
+// 		for x != nil && m.cmp(x.key, hi) <= 0 && yield(x.key, x.val) {
 // 			x = x.next(m)
 // 		}
 // 	}
 // }
-
-// Scan returns an iterator over the map m
-// limited to keys k satisfying lo ≤ k ≤ hi.
-//
-// If m is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
-func (m *MapFunc[K, V]) Scan(lo, hi K) iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		x, _ := findGE(m, lo)
-		for x != nil && m.cmp(x.key, hi) <= 0 && yield(x.key, x.val) {
-			x = x.next(m)
-		}
-	}
-}
 
 // next returns the successor node of x in the treap,
 // even if x has been removed from the treap.
@@ -709,6 +696,16 @@ func (r Range[K, V]) inHi(k K) bool {
 	return k < r.hi.key
 }
 
+func (r Range[K, V]) inLo(k K) bool {
+	if !r.lo.present {
+		return true
+	}
+	if r.lo.inclusive {
+		return k >= r.lo.key
+	}
+	return k > r.lo.key
+}
+
 func (r Range[K, V]) Min() (K, bool) {
 	var z K
 	if x := r.minNode(); x != nil {
@@ -762,20 +759,47 @@ func (r Range[K, V]) Clear() {
 	deleteRange(r.m, r.lo, r.hi)
 }
 
+// All returns an iterator over the map m from smallest to largest key.
+// If m is modified during the iteration, some keys may not be visited.
+// No keys will be visited multiple times.
 func (r Range[K, V]) All() iter.Seq2[K, V] {
-	x := *r.m.root()
-	if !r.lo.present {
-		x = x.minNode()
-	} else {
-		n, eq := findGE(r.m, r.lo.key)
-		if eq && !r.lo.inclusive {
-			n = n.next(r.m)
-		}
-		x = n
-	}
 	return func(yield func(K, V) bool) {
+		x := *r.m.root()
+		if x == nil {
+			return
+		}
+		if !r.lo.present {
+			x = x.minNode()
+		} else {
+			n, eq := findGE(r.m, r.lo.key)
+			if eq && !r.lo.inclusive {
+				n = n.next(r.m)
+			}
+			x = n
+		}
 		for x != nil && r.inHi(x.key) && yield(x.key, x.val) {
 			x = x.next(r.m)
+		}
+	}
+}
+
+func (r Range[K, V]) Backward() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		x := *r.m.root()
+		if x == nil {
+			return
+		}
+		if !r.hi.present {
+			x = x.maxNode()
+		} else {
+			n, eq := findLE(r.m, r.hi.key)
+			if eq && !r.hi.inclusive {
+				n = n.prev(r.m)
+			}
+			x = n
+		}
+		for x != nil && r.inLo(x.key) && yield(x.key, x.val) {
+			x = x.prev(r.m)
 		}
 	}
 }
