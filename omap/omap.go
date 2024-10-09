@@ -1,12 +1,11 @@
-// XXXXXX
-// TODO: support Len with a size in each node.
-// A root counter alone doesn't suffice for fast deleteRange.
-// TODO: Range.Backward
-
 // Copyright 2024 The Go Authors. All rights reserved.
-
+//
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
+
+// TODO: support Len with a size in each node; a root counter alone doesn't suffice for fast deleteRange.
+// TODO: test deleteRange tombstoning with/without iterators.
+// TODO: rewrite deleteRange to avoid insertions.
 
 // Package omap implements in-memory ordered maps.
 // [Map][K, V] is suitable for ordered types K,
@@ -29,7 +28,8 @@ import (
 // A Map is a map[K]V ordered according to K's standard Go ordering.
 // The zero value of a Map is an empty Map ready to use.
 type Map[K cmp.Ordered, V any] struct {
-	_root *node[K, V]
+	_root       *node[K, V]
+	_nIterators int
 }
 
 // A MapFunc is a map[K]V ordered according to an arbitrary comparison function.
@@ -37,8 +37,9 @@ type Map[K cmp.Ordered, V any] struct {
 // Use [NewMapFunc] to create a [MapFunc].
 // A nil *MapFunc, like a nil Go map, can be read but not written and contains no entries.
 type MapFunc[K, V any] struct {
-	_root *node[K, V]
-	cmp   func(K, K) int
+	_root       *node[K, V]
+	cmp         func(K, K) int
+	_nIterators int
 }
 
 // A node is a node in the treap.
@@ -62,6 +63,8 @@ type omap[K, V any] interface {
 	// root returns &m._root; the caller can read or write *m.root().
 	root() **node[K, V]
 
+	nIterators() *int
+
 	// find reports where a node with the key would be: at *pos.
 	// If *pos != nil, then key is present in the tree;
 	// otherwise *pos is where a new node with the key should be attached.
@@ -80,6 +83,12 @@ type omap[K, V any] interface {
 
 func (m *Map[K, V]) root() **node[K, V]     { return &m._root }
 func (m *MapFunc[K, V]) root() **node[K, V] { return &m._root }
+
+func (m *Map[K, V]) nIterators() *int     { return &m._nIterators }
+func (m *MapFunc[K, V]) nIterators() *int { return &m._nIterators }
+
+func startIter[K, V any](m omap[K, V]) { (*m.nIterators())++ }
+func endIter[K, V any](m omap[K, V])   { (*m.nIterators())-- }
 
 func (m *Map[K, V]) clear()     { m.Clear() }
 func (m *MapFunc[K, V]) clear() { m.Clear() }
@@ -313,7 +322,7 @@ func deleteRange[K, V any](m omap[K, V], lo, hi bound[K]) {
 func deleteBetweenInclusive[K, V any](m omap[K, V], lo, hi K) {
 	after := splitExclusive(m, hi)
 	middle := splitExclusive(m, lo)
-	markDeleted(middle)
+	markDeleted(m, middle)
 	if after != nil {
 		// Add after to m.
 		// Both lo and all of after's keys are greater than any key in m.
@@ -330,7 +339,7 @@ func deleteAbove[K, V any](m omap[K, V], lo bound[K]) {
 	assert(lo.present)
 	val, ok := m.get(lo.key)
 	after := splitExclusive(m, lo.key)
-	markDeleted(after)
+	markDeleted(m, after)
 	if !lo.inclusive && ok {
 		m.set(lo.key, val)
 	}
@@ -341,7 +350,7 @@ func deleteBelow[K, V any](m omap[K, V], hi bound[K]) {
 	val, ok := m.get(hi.key)
 	after := splitExclusive(m, hi.key)
 	// Keep after, discard m.
-	markDeleted(*m.root())
+	markDeleted(m, *m.root())
 	*m.root() = after
 	if after != nil {
 		after.parent = nil
@@ -372,13 +381,20 @@ func splitExclusive[K, V any](m omap[K, V], key K) (after *node[K, V]) {
 	return x.right
 }
 
-func markDeleted[K, V any](x *node[K, V]) {
+func markDeleted[K, V any](m omap[K, V], x *node[K, V]) {
+	if *m.nIterators() == 0 {
+		return
+	}
+	markDel(x)
+}
+
+func markDel[K, V any](x *node[K, V]) {
 	if x == nil {
 		return
 	}
 	x.pri = 0
-	markDeleted(x.left)
-	markDeleted(x.right)
+	markDel(x.left)
+	markDel(x.right)
 }
 
 // All returns an iterator over the map m from smallest to largest key.
@@ -398,6 +414,9 @@ func (m *MapFunc[K, V]) All() iter.Seq2[K, V] {
 // all returns an iterator over the map m from smallest to largest key, where *root is the root.
 func all[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
+		startIter(m)
+		defer endIter(m)
+
 		x := *m.root()
 		if x != nil {
 			x = x.minNode()
@@ -425,6 +444,9 @@ func (m *MapFunc[K, V]) Backward() iter.Seq2[K, V] {
 // backward returns an iterator over the map m from largest to smallest key, where *root is the root.
 func backward[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
+		startIter(m)
+		defer endIter(m)
+
 		x := *m.root()
 		if x != nil {
 			x = x.maxNode()
@@ -764,6 +786,9 @@ func (r Range[K, V]) Clear() {
 // No keys will be visited multiple times.
 func (r Range[K, V]) All() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
+		startIter(r.m)
+		defer endIter(r.m)
+
 		x := *r.m.root()
 		if x == nil {
 			return
@@ -785,6 +810,9 @@ func (r Range[K, V]) All() iter.Seq2[K, V] {
 
 func (r Range[K, V]) Backward() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
+		startIter(r.m)
+		defer endIter(r.m)
+
 		x := *r.m.root()
 		if x == nil {
 			return
