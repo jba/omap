@@ -3,9 +3,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// TODO: support Len with a size in each node; a root counter alone doesn't suffice for fast deleteRange.
+// TODO: fix Len: we must propagate node size changes up to the root
 // TODO: test deleteRange tombstoning with/without iterators.
 // TODO: rewrite deleteRange to avoid insertions.
+// TODO: implement and test MapFunc
 
 // Package omap implements in-memory ordered maps.
 // [Map][K, V] is suitable for ordered types K,
@@ -50,6 +51,7 @@ type node[K any, V any] struct {
 	key    K
 	val    V
 	pri    uint64
+	_size  int
 }
 
 // NewMapFunc returns a new MapFunc[K, V] ordered according to cmp.
@@ -177,8 +179,13 @@ func set[K, V any](m omap[K, V], key K, val V) (V, bool) {
 		x.val = val
 		return old, false
 	}
-	x := &node[K, V]{key: key, val: val, pri: rand.Uint64() | 1, parent: parent}
+	x := &node[K, V]{key: key, val: val, pri: rand.Uint64() | 1, parent: parent, _size: 1}
 	*pos = x
+	// Walk up, adjusting size.
+	for p := x.parent; p != nil; p = p.parent {
+		p._size++
+	}
+
 	rotateUp(m, x)
 	var z V
 	return z, true
@@ -197,20 +204,20 @@ func rotateUp[K, V any](m omap[K, V], x *node[K, V]) {
 }
 
 // Delete deletes m[key] if it exists.
-func (m *Map[K, V]) Delete(key K) {
-	_delete(m, key)
+func (m *Map[K, V]) Delete(key K) bool {
+	return _delete(m, key)
 }
 
 // Delete deletes m[key] if it exists.
-func (m *MapFunc[K, V]) Delete(key K) {
-	_delete(m, key)
+func (m *MapFunc[K, V]) Delete(key K) bool {
+	return _delete(m, key)
 }
 
-func _delete[K, V any](m omap[K, V], key K) {
+func _delete[K, V any](m omap[K, V], key K) bool {
 	pos, _ := m.find(key)
 	x := *pos
 	if x == nil {
-		return
+		return false
 	}
 
 	// Rotate x down to be leaf of tree for removal, respecting priorities.
@@ -232,6 +239,13 @@ func _delete[K, V any](m omap[K, V], key K) {
 		p.right = nil
 	}
 	x.pri = 0 // mark deleted
+
+	// Walk up, adjusting size.
+	for p := x.parent; p != nil; p = p.parent {
+		p._size--
+	}
+
+	return true
 }
 
 // Min returns the minimum key in m and true.
@@ -330,6 +344,10 @@ func deleteBetweenInclusive[K, V any](m omap[K, V], lo, hi K) {
 		assert(*pos == nil)
 		*pos = after
 		after.parent = parent
+		// Adjust sizes.
+		for p := parent; p != nil; p = p.parent {
+			p.redoSize()
+		}
 		// after is now in the right place by key, but perhaps not by priority.
 		rotateUp(m, after)
 	}
@@ -552,6 +570,29 @@ func findLE[K, V any](m omap[K, V], key K) (x *node[K, V], eq bool) {
 	return parent.prev(m), false
 }
 
+func (x *node[K, V]) size() int {
+	if x == nil {
+		return 0
+	}
+	return x._size
+}
+
+//
+// func (x *node[K, V]) setLeft(y *node[K, V]) {
+// 	fmt.Printf("### (%d).setLeft(%d); left size=%d\n", x.size(), y.size(), x.left.size())
+// 	x._size += y.size() - x.left.size()
+// 	x.left = y
+// }
+
+// func (x *node[K, V]) setRight(y *node[K, V]) {
+// 	x._size += y.size() - x.right.size()
+// 	x.right = y
+// }
+
+func (x *node[K, V]) redoSize() {
+	x._size = 1 + x.left.size() + x.right.size()
+}
+
 // rotateLeft rotates the subtree rooted at node x.
 // turning (x a (y b c)) into (y (x a b) c).
 func rotateLeft[K, V any](m omap[K, V], x *node[K, V]) {
@@ -578,6 +619,11 @@ func rotateLeft[K, V any](m omap[K, V], x *node[K, V]) {
 		// unreachable
 		panic("corrupt treap")
 	}
+
+	// Recompute sizes bottom-up.
+	x.redoSize()
+	y.redoSize()
+	// parent size doesn't change.
 }
 
 // rotateRight rotates the subtree rooted at node y.
@@ -606,6 +652,11 @@ func rotateRight[K, V any](m omap[K, V], y *node[K, V]) {
 		// unreachable
 		panic("corrupt treap")
 	}
+
+	// Recompute sizes bottom-up.
+	y.redoSize()
+	x.redoSize()
+	// parent size doesn't change.
 }
 
 // Clear deletes m[k] for all keys in m.
@@ -641,6 +692,12 @@ func (x *node[K, V]) clone(parent *node[K, V]) *node[K, V] {
 	x2.parent = parent
 	return x2
 }
+
+// Len returns the number of keys in m.
+func (m *Map[K, V]) Len() int { return m._root.size() }
+
+// Len returns the number of keys in m.
+func (m *MapFunc[K, V]) Len() int { return m._root.size() }
 
 type Range[K cmp.Ordered, V any] struct {
 	m      *Map[K, V]

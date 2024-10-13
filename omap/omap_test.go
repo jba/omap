@@ -19,12 +19,19 @@ import (
 type Interface[K, V any] interface {
 	All() iter.Seq2[K, V]
 	Backward() iter.Seq2[K, V]
-	Delete(key K)
+	Delete(key K) bool
 	Get(key K) (V, bool)
 	Set(key K, val V) (V, bool)
 	Min() (K, bool)
 	Max() (K, bool)
+	Len() int
 	root() **node[K, V]
+}
+
+func assertEq(a, b any, msg string) {
+	if a != b {
+		panic(fmt.Sprintf("%s: %v != %v", msg, a, b))
+	}
 }
 
 func permute(m Interface[int, int], n int) (perm, slice []int) {
@@ -32,15 +39,19 @@ func permute(m Interface[int, int], n int) (perm, slice []int) {
 	slice = make([]int, 2*n+1)
 	for i, x := range perm {
 		m.Set(2*x+1, i+1)
+		assertEq(m.Len(), i+1, "m.Len()")
 		slice[2*x+1] = i + 1
 	}
+	ln := m.Len()
 	// Overwrite-Set half the entries.
 	for i, x := range perm[:len(perm)/2] {
 		old, added := m.Set(2*x+1, i+100)
 		assert(!added)
 		assert(old == i+1)
+		assert(m.Len() == ln)
 		slice[2*x+1] = i + 100
 	}
+	assert(m.Len() == n)
 	return perm, slice
 }
 
@@ -52,7 +63,7 @@ func dump(m Interface[int, int]) string {
 			fmt.Fprintf(&buf, "nil")
 			return
 		}
-		fmt.Fprintf(&buf, "(%d ", x.key)
+		fmt.Fprintf(&buf, "(%d[%d] ", x.key, x._size)
 		walk(x.left)
 		fmt.Fprintf(&buf, " ")
 		walk(x.right)
@@ -285,11 +296,24 @@ func TestBackwardRange(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		checkLen := func(m Interface[int, int], n int) {
+			t.Helper()
+			if m.Len() != n {
+				t.Errorf("m.Len() = %d, want %d", m.Len(), n)
+			}
+		}
+
 		for N := range 11 {
 			m := newMap()
+			checkLen(m, 0)
 			_, slice := permute(m, N)
+			checkLen(m, N)
+			wantLen := N
 			for _, x := range rand.Perm(len(slice)) {
-				m.Delete(x)
+				if m.Delete(x) {
+					wantLen--
+				}
+				checkLen(m, wantLen)
 				slice[x] = 0
 				var have []int
 				for k, _ := range m.All() {
@@ -328,6 +352,9 @@ func TestDeleteRange(t *testing.T) {
 			want := keep(slice, func(k int) bool { return !in(k, blo, bhi) })
 			if !slices.Equal(have, want) {
 				t.Errorf("N=%d, after Clear(%s), All() = %v, want %v", N, r, have, want)
+			}
+			if g, w := m.Len(), len(have); g != w {
+				t.Errorf("m.Len() = %d, want %d", g, w)
 			}
 		}
 
