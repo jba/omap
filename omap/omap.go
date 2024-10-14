@@ -3,10 +3,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// TODO: fix Len: we must propagate node size changes up to the root
-// TODO: test deleteRange tombstoning with/without iterators.
+// TODO: use gen counter to invalidate iterators on delete range
 // TODO: rewrite deleteRange to avoid insertions.
-// TODO: implement and test MapFunc
+// TODO: strengthen iteration guarantee
 
 // Package omap implements in-memory ordered maps.
 // [Map][K, V] is suitable for ordered types K,
@@ -578,18 +577,6 @@ func (x *node[K, V]) size() int {
 	return x._size
 }
 
-//
-// func (x *node[K, V]) setLeft(y *node[K, V]) {
-// 	fmt.Printf("### (%d).setLeft(%d); left size=%d\n", x.size(), y.size(), x.left.size())
-// 	x._size += y.size() - x.left.size()
-// 	x.left = y
-// }
-
-// func (x *node[K, V]) setRight(y *node[K, V]) {
-// 	x._size += y.size() - x.right.size()
-// 	x.right = y
-// }
-
 func (x *node[K, V]) redoSize() {
 	x._size = 1 + x.left.size() + x.right.size()
 }
@@ -722,35 +709,39 @@ func (x *node[K, V]) at(i int) (K, V) {
 	return x.right.at(i - lsz - 1)
 }
 
+// From returns a Range with lower bound lo, inclusive, and no upper bound.
+func (m *Map[K, V]) From(lo K) Range[K, V] { return Range[K, V]{m: m, _lo: including(lo)} }
+
+// Above returns a Range with lower bound lo, exclusive, and no upper bound.
+func (m *Map[K, V]) Above(lo K) Range[K, V] { return Range[K, V]{m: m, _lo: excluding(lo)} }
+
+// To returns a Range with upper bound hi, inclusive, and no lower bound.
+func (m *Map[K, V]) To(hi K) Range[K, V] { return Range[K, V]{m: m, _hi: including(hi)} }
+
+// Below returns a Range with upper bound hi, exclusive, and no lower bound.
+func (m *Map[K, V]) Below(hi K) Range[K, V] { return Range[K, V]{m: m, _hi: excluding(hi)} }
+
+func (m *MapFunc[K, V]) From(lo K) RangeFunc[K, V]  { return RangeFunc[K, V]{m: m, _lo: including(lo)} }
+func (m *MapFunc[K, V]) Above(lo K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _lo: excluding(lo)} }
+func (m *MapFunc[K, V]) To(hi K) RangeFunc[K, V]    { return RangeFunc[K, V]{m: m, _hi: including(hi)} }
+func (m *MapFunc[K, V]) Below(hi K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _hi: excluding(hi)} }
+
 type Range[K cmp.Ordered, V any] struct {
-	m      *Map[K, V]
-	lo, hi bound[K]
+	m        *Map[K, V]
+	_lo, _hi bound[K]
 }
 
-func (r Range[K, V]) String() string {
-	var b strings.Builder
-	if !r.lo.present {
-		b.WriteString("(-∞")
-	} else {
-		if r.lo.inclusive {
-			b.WriteByte('[')
-		} else {
-			b.WriteByte('(')
-		}
-		fmt.Fprintf(&b, "%v", r.lo.key)
-	}
-	b.WriteString(", ")
-	if !r.hi.present {
-		b.WriteString("∞)")
-	} else {
-		fmt.Fprintf(&b, "%v", r.hi.key)
-		if r.hi.inclusive {
-			b.WriteByte(']')
-		} else {
-			b.WriteByte(')')
-		}
-	}
-	return b.String()
+type RangeFunc[K, V any] struct {
+	m        *MapFunc[K, V]
+	_lo, _hi bound[K]
+}
+
+type _range[K, V any] interface {
+	lo() bound[K]
+	hi() bound[K]
+	inHi(K) bool
+	inLo(K) bool
+	omap() omap[K, V]
 }
 
 type bound[K any] struct {
@@ -767,50 +758,110 @@ func excluding[K any](k K) bound[K] {
 	return bound[K]{k, true, false}
 }
 
-func (m *Map[K, V]) From(lo K) Range[K, V]  { return Range[K, V]{m: m, lo: including(lo)} }
-func (m *Map[K, V]) Above(lo K) Range[K, V] { return Range[K, V]{m: m, lo: excluding(lo)} }
-func (m *Map[K, V]) To(hi K) Range[K, V]    { return Range[K, V]{m: m, hi: including(hi)} }
-func (m *Map[K, V]) Below(hi K) Range[K, V] { return Range[K, V]{m: m, hi: excluding(hi)} }
+func (r Range[K, V]) omap() omap[K, V]     { return r.m }
+func (r RangeFunc[K, V]) omap() omap[K, V] { return r.m }
 
-func (r Range[K, V]) To(hi K) Range[K, V] {
-	if r.hi.present {
-		panic("range already has high bound")
-	}
-	r.hi = including(hi)
-	return r
-}
+func (r Range[K, V]) lo() bound[K]     { return r._lo }
+func (r RangeFunc[K, V]) lo() bound[K] { return r._lo }
 
-func (r Range[K, V]) Below(hi K) Range[K, V] {
-	if r.hi.present {
-		panic("range already has high bound")
-	}
-	r.hi = excluding(hi)
-	return r
-}
+func (r Range[K, V]) hi() bound[K]     { return r._hi }
+func (r RangeFunc[K, V]) hi() bound[K] { return r._hi }
 
 func (r Range[K, V]) inHi(k K) bool {
-	if !r.hi.present {
+	if !r._hi.present {
 		return true
 	}
-	if r.hi.inclusive {
-		return k <= r.hi.key
+	if r._hi.inclusive {
+		return k <= r._hi.key
 	}
-	return k < r.hi.key
+	return k < r._hi.key
 }
 
 func (r Range[K, V]) inLo(k K) bool {
-	if !r.lo.present {
+	if !r._lo.present {
 		return true
 	}
-	if r.lo.inclusive {
-		return k >= r.lo.key
+	if r._lo.inclusive {
+		return k >= r._lo.key
 	}
-	return k > r.lo.key
+	return k > r._lo.key
 }
 
-func (r Range[K, V]) Min() (K, bool) {
+func (r RangeFunc[K, V]) inHi(k K) bool {
+	if !r._hi.present {
+		return true
+	}
+	if r._hi.inclusive {
+		return r.m.cmp(k, r._hi.key) <= 0
+	}
+	return r.m.cmp(k, r._hi.key) < 0
+}
+
+func (r RangeFunc[K, V]) inLo(k K) bool {
+	if !r._lo.present {
+		return true
+	}
+	if r._lo.inclusive {
+		return r.m.cmp(k, r._lo.key) >= 0
+	}
+	return r.m.cmp(k, r._lo.key) > 0
+}
+
+func (r Range[K, V]) String() string     { return rstr(r) }
+func (r RangeFunc[K, V]) String() string { return rstr(r) }
+
+func rstr[K, V any](r _range[K, V]) string {
+	var b strings.Builder
+	if !r.lo().present {
+		b.WriteString("(-∞")
+	} else {
+		if r.lo().inclusive {
+			b.WriteByte('[')
+		} else {
+			b.WriteByte('(')
+		}
+		fmt.Fprintf(&b, "%v", r.lo().key)
+	}
+	b.WriteString(", ")
+	if !r.hi().present {
+		b.WriteString("∞)")
+	} else {
+		fmt.Fprintf(&b, "%v", r.hi().key)
+		if r.hi().inclusive {
+			b.WriteByte(']')
+		} else {
+			b.WriteByte(')')
+		}
+	}
+	return b.String()
+}
+
+// To returns a Range with upper bound hi, inclusive and the same lower bound as r.
+// It panics if r already has an upper bound.
+func (r Range[K, V]) To(hi K) Range[K, V] {
+	if r._hi.present {
+		panic("range already has an upper bound")
+	}
+	r._hi = including(hi)
+	return r
+}
+
+// Below returns a Range with upper bound hi, exclusive and the same lower bound as r.
+// It panics if r already has an upper bound.
+func (r Range[K, V]) Below(hi K) Range[K, V] {
+	if r._hi.present {
+		panic("range already has an upper bound")
+	}
+	r._hi = excluding(hi)
+	return r
+}
+
+func (r Range[K, V]) Min() (K, bool)     { return rmin(r) }
+func (r RangeFunc[K, V]) Min() (K, bool) { return rmin(r) }
+
+func rmin[K, V any](r _range[K, V]) (K, bool) {
 	var z K
-	if x := r.minNode(); x != nil {
+	if x := minNode(r); x != nil {
 		return x.key, true
 	}
 	return z, false
@@ -818,37 +869,48 @@ func (r Range[K, V]) Min() (K, bool) {
 
 // minNode returns the node with the smallest key in r,
 // or nil if r is empty.
-func (r Range[K, V]) minNode() *node[K, V] {
-	x := *r.m.root()
+func minNode[K, V any](r _range[K, V]) *node[K, V] {
+	x := *r.omap().root()
 	if x == nil {
 		return nil
 	}
-	if !r.lo.present {
+	if !r.lo().present {
 		return x.minNode()
 	}
-	n, eq := findGE(r.m, r.lo.key)
-	if eq && !r.lo.inclusive {
-		n = n.next(r.m)
+	n, eq := findGE(r.omap(), r.lo().key)
+	if eq && !r.lo().inclusive {
+		n = n.next(r.omap())
 	}
 	if n == nil || !r.inHi(n.key) {
 		return nil
 	}
 	return n
+}
+
+func (r Range[K, V]) Max() (K, bool)     { return rmax(r) }
+func (r RangeFunc[K, V]) Max() (K, bool) { return rmax(r) }
+
+func rmax[K, V any](r _range[K, V]) (K, bool) {
+	var z K
+	if x := maxNode(r); x != nil {
+		return x.key, true
+	}
+	return z, false
 }
 
 // maxNode returns the node with the largest key in r,
 // or nil if r is empty.
-func (r Range[K, V]) maxNode() *node[K, V] {
-	x := *r.m.root()
+func maxNode[K, V any](r _range[K, V]) *node[K, V] {
+	x := *r.omap().root()
 	if x == nil {
 		return nil
 	}
-	if !r.lo.present {
+	if !r.lo().present {
 		return x.minNode()
 	}
-	n, eq := findLE(r.m, r.hi.key)
-	if eq && !r.lo.inclusive {
-		n = n.next(r.m)
+	n, eq := findLE(r.omap(), r.hi().key)
+	if eq && !r.lo().inclusive {
+		n = n.next(r.omap())
 	}
 	if n == nil || !r.inHi(n.key) {
 		return nil
@@ -856,58 +918,76 @@ func (r Range[K, V]) maxNode() *node[K, V] {
 	return n
 }
 
-// Clear deletes m[k] for all keys in r.
-func (r Range[K, V]) Clear() {
-	deleteRange(r.m, r.lo, r.hi)
-}
+// Clear deletes all the entries in r from r's underlying map.
+func (r Range[K, V]) Clear() { deleteRange(r.m, r.lo(), r.hi()) }
 
-// All returns an iterator over the map m from smallest to largest key.
-// If m is modified during the iteration, some keys may not be visited.
+// Clear deletes all the entries in r from r's underlying map.
+func (r RangeFunc[K, V]) Clear() { deleteRange(r.m, r.lo(), r.hi()) }
+
+// All returns an iterator over r's underlying map from smallest to largest key in r.
+// If the map is modified during the iteration, some keys may not be visited.
 // No keys will be visited multiple times.
-func (r Range[K, V]) All() iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		startIter(r.m)
-		defer endIter(r.m)
+func (r Range[K, V]) All() iter.Seq2[K, V] { return rall(r) }
 
-		x := *r.m.root()
+// All returns an iterator over r's underlying map from smallest to largest key in r.
+// If the map is modified during the iteration, some keys may not be visited.
+// No keys will be visited multiple times.
+func (r RangeFunc[K, V]) All() iter.Seq2[K, V] { return rall(r) }
+
+func rall[K, V any](r _range[K, V]) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		startIter(r.omap())
+		defer endIter(r.omap())
+
+		x := *r.omap().root()
 		if x == nil {
 			return
 		}
-		if !r.lo.present {
+		if !r.lo().present {
 			x = x.minNode()
 		} else {
-			n, eq := findGE(r.m, r.lo.key)
-			if eq && !r.lo.inclusive {
-				n = n.next(r.m)
+			n, eq := findGE(r.omap(), r.lo().key)
+			if eq && !r.lo().inclusive {
+				n = n.next(r.omap())
 			}
 			x = n
 		}
 		for x != nil && r.inHi(x.key) && yield(x.key, x.val) {
-			x = x.next(r.m)
+			x = x.next(r.omap())
 		}
 	}
 }
 
-func (r Range[K, V]) Backward() iter.Seq2[K, V] {
-	return func(yield func(K, V) bool) {
-		startIter(r.m)
-		defer endIter(r.m)
+// Backward returns an iterator over r's underlying map from largest to smallest key in r.
+// If the map is modified during the iteration, some keys may not be visited.
+// No keys will be visited multiple times.
+func (r Range[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
 
-		x := *r.m.root()
+// Backward returns an iterator over r's underlying map from largest to smallest key in r.
+// If the map is modified during the iteration, some keys may not be visited.
+// No keys will be visited multiple times.
+func (r RangeFunc[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
+
+func rbackward[K, V any](r _range[K, V]) iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		startIter(r.omap())
+		defer endIter(r.omap())
+
+		x := *r.omap().root()
 		if x == nil {
 			return
 		}
-		if !r.hi.present {
+		if !r.hi().present {
 			x = x.maxNode()
 		} else {
-			n, eq := findLE(r.m, r.hi.key)
-			if eq && !r.hi.inclusive {
-				n = n.prev(r.m)
+			n, eq := findLE(r.omap(), r.hi().key)
+			if eq && !r.hi().inclusive {
+				n = n.prev(r.omap())
 			}
 			x = n
 		}
 		for x != nil && r.inLo(x.key) && yield(x.key, x.val) {
-			x = x.prev(r.m)
+			x = x.prev(r.omap())
 		}
 	}
 }

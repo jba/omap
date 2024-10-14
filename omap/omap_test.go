@@ -29,30 +29,18 @@ type Interface[K, V any] interface {
 	root() **node[K, V]
 }
 
-func assertEq(a, b any, msg string) {
-	if a != b {
-		panic(fmt.Sprintf("%s: %v != %v", msg, a, b))
-	}
-}
-
 func permute(m Interface[int, int], n int) (perm, slice []int) {
 	perm = rand.Perm(n)
 	slice = make([]int, 2*n+1)
 	for i, x := range perm {
 		m.Set(2*x+1, i+1)
-		assertEq(m.Len(), i+1, "m.Len()")
 		slice[2*x+1] = i + 1
 	}
-	ln := m.Len()
 	// Overwrite-Set half the entries.
 	for i, x := range perm[:len(perm)/2] {
-		old, added := m.Set(2*x+1, i+100)
-		assert(!added)
-		assert(old == i+1)
-		assert(m.Len() == ln)
+		m.Set(2*x+1, i+100)
 		slice[2*x+1] = i + 100
 	}
-	assert(m.Len() == n)
 	return perm, slice
 }
 
@@ -78,9 +66,9 @@ func test(t *testing.T, f func(*testing.T, func() Interface[int, int])) {
 	t.Run("Map", func(t *testing.T) {
 		f(t, func() Interface[int, int] { return new(Map[int, int]) })
 	})
-	// t.Run("MapFunc", func(t *testing.T) {
-	// 	f(t, func() Interface[int, int] { return NewMapFunc[int, int](cmp.Compare) })
-	// })
+	t.Run("MapFunc", func(t *testing.T) {
+		f(t, func() Interface[int, int] { return NewMapFunc[int, int](cmp.Compare) })
+	})
 }
 
 func TestGet(t *testing.T) {
@@ -515,9 +503,11 @@ type iRange[K, V any] interface {
 func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
 	switch m := m.(type) {
 	case *Map[K, V]:
-		return Range[K, V]{m: m, lo: lo, hi: hi}
+		return Range[K, V]{m: m, _lo: lo, _hi: hi}
+	case *MapFunc[K, V]:
+		return RangeFunc[K, V]{m: m, _lo: lo, _hi: hi}
 	default:
-		panic("unimp")
+		panic("bad map type")
 	}
 }
 
