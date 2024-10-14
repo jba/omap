@@ -390,6 +390,7 @@ func splitExclusive[K, V any](m omap[K, V], key K) (after *node[K, V]) {
 	}
 	x := *pos
 	x.pri = 0
+	x._size = 0
 	rotateUp(m, x)
 
 	*m.root() = x.left

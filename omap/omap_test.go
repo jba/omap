@@ -169,12 +169,7 @@ func TestAll(t *testing.T) {
 					break
 				}
 			}
-			var want []int
-			for k, v := range slice {
-				if v != 0 {
-					want = append(want, k)
-				}
-			}
+			want := nonzeroIndexes(slice)
 			if !slices.Equal(have, want) {
 				t.Errorf("All() = %v, want %v", have, want)
 			}
@@ -197,12 +192,7 @@ func TestBackward(t *testing.T) {
 					break
 				}
 			}
-			var want []int
-			for k, v := range slice {
-				if v != 0 {
-					want = append(want, k)
-				}
-			}
+			want := nonzeroIndexes(slice)
 			slices.Reverse(want)
 			if !slices.Equal(have, want) {
 				t.Errorf("All() = %v, want %v", have, want)
@@ -319,12 +309,7 @@ func TestDelete(t *testing.T) {
 				for k, _ := range m.All() {
 					have = append(have, k)
 				}
-				var want []int
-				for x, v := range slice {
-					if v != 0 {
-						want = append(want, x)
-					}
-				}
+				want := nonzeroIndexes(slice)
 				slices.Sort(want)
 				if !slices.Equal(have, want) {
 					t.Errorf("after Delete(%v), All() = %v, want %v", x, have, want)
@@ -389,41 +374,86 @@ func TestAllDeleteRange(t *testing.T) {
 					var have []int
 					var deleteLo, deleteHi int
 					for k, _ := range m.All() {
-						if k == target {
-							switch mode {
-							case "prev":
-								deleteLo, deleteHi = k-5, k-1
-							case "current":
-								deleteLo, deleteHi = k-2, k+2
-								if k+2 < len(slice) {
-									slice[k+2] = 0
-								}
-							case "next":
-								deleteLo, deleteHi = k+1, k+5
-								if k+2 < len(slice) {
-									slice[k+2] = 0
-								}
-								if k+4 < len(slice) {
-									slice[k+4] = 0
-								}
-							}
-							newRange(m, including(deleteLo), including(deleteHi)).Clear()
-						}
+						clearRange(m, true, k, target, mode, slice)
 						have = append(have, k)
 					}
-					var want []int
-					for k, v := range slice {
-						if v != 0 {
-							want = append(want, k)
-						}
-					}
+					want := nonzeroIndexes(slice)
 					if !slices.Equal(have, want) {
-						t.Errorf("All() with DeleteRange(%d, %d) at %d = %v, want %v", deleteLo, deleteHi, target, have, want)
+						t.Errorf("All() deleting range [%d, %d] at %d = %v, want %v", deleteLo, deleteHi, target, have, want)
 					}
+					checkSize(t, m.(omap[int, int]))
 				}
 			}
 		}
 	})
+}
+
+func TestBackwardDeleteRange(t *testing.T) {
+	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		for _, mode := range []string{"prev", "current", "next"} {
+			for N := range 8 {
+				for target := 1; target <= 2*N-1; target += 2 {
+					m := newMap()
+					_, slice := permute(m, N)
+					var have []int
+					var deleteLo, deleteHi int
+					for k, _ := range m.Backward() {
+						clearRange(m, false, k, target, mode, slice)
+						have = append(have, k)
+					}
+					want := nonzeroIndexes(slice)
+					slices.Reverse(want)
+					if !slices.Equal(have, want) {
+						t.Errorf("Backward() deleting range [%d, %d] at %d = %v, want %v", deleteLo, deleteHi, target, have, want)
+					}
+					checkSize(t, m.(omap[int, int]))
+				}
+			}
+		}
+	})
+}
+
+func clearRange(m Interface[int, int], forwards bool, k, target int, mode string, slice []int) {
+	var deleteLo, deleteHi int
+	if k == target {
+		switch mode {
+		case "prev":
+			deleteLo, deleteHi = k-5, k-1
+		case "current":
+			deleteLo, deleteHi = k-2, k+2
+		case "next":
+			deleteLo, deleteHi = k+1, k+5
+		}
+		newRange(m, including(deleteLo), including(deleteHi)).Clear()
+		var lo, hi int
+		if forwards {
+			lo = max(deleteLo, k+1)
+			hi = min(len(slice), deleteHi+1)
+		} else {
+			lo = max(deleteLo, 0)
+			hi = min(k, deleteHi+1)
+		}
+		for i := lo; i < hi; i++ {
+			slice[i] = 0
+		}
+	}
+}
+
+func checkSize[K, V any](t *testing.T, m omap[K, V]) {
+	t.Helper()
+	chsz(t, *m.root())
+}
+
+func chsz[K, V any](t *testing.T, x *node[K, V]) {
+	t.Helper()
+	if x == nil {
+		return
+	}
+	chsz(t, x.left)
+	chsz(t, x.right)
+	if g, w := x._size, 1+x.left.size()+x.right.size(); g != w {
+		t.Fatalf("checkSize key=%v: have %d, want %d", x.key, g, w)
+	}
 }
 
 func TestRangeString(t *testing.T) {
@@ -472,7 +502,16 @@ func keep(s []int, f func(int) bool) []int {
 		}
 	}
 	return r
+}
 
+func nonzeroIndexes(s []int) []int {
+	var r []int
+	for k, v := range s {
+		if v != 0 {
+			r = append(r, k)
+		}
+	}
+	return r
 }
 
 // in reports whether n is within the interval specified by lo and hi.
