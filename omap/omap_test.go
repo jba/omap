@@ -25,6 +25,7 @@ type Interface[K, V any] interface {
 	Min() (K, bool)
 	Max() (K, bool)
 	Len() int
+	At(int) (K, V)
 	root() **node[K, V]
 }
 
@@ -437,6 +438,34 @@ func clearRange(m Interface[int, int], forwards bool, k, target int, mode string
 			slice[i] = 0
 		}
 	}
+}
+
+func TestAt(t *testing.T) {
+	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		for N := range 11 {
+			m := newMap()
+			_, slice := permute(m, N)
+			var haveKeys, haveVals []int
+			for i := 0; i < N; i++ {
+				k, v := m.At(i)
+				haveKeys = append(haveKeys, k)
+				haveVals = append(haveVals, v)
+			}
+			var wantKeys, wantVals []int
+			for k, v := range slice {
+				if v != 0 {
+					wantKeys = append(wantKeys, k)
+					wantVals = append(wantVals, v)
+				}
+			}
+			if !slices.Equal(haveKeys, wantKeys) {
+				t.Errorf("keys: have %v, want %v", haveKeys, wantKeys)
+			}
+			if !slices.Equal(haveVals, wantVals) {
+				t.Errorf("values: have %v, want %v", haveVals, wantVals)
+			}
+		}
+	})
 }
 
 func checkSize[K, V any](t *testing.T, m omap[K, V]) {

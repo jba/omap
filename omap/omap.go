@@ -700,6 +700,28 @@ func (m *Map[K, V]) Len() int { return m._root.size() }
 // Len returns the number of keys in m.
 func (m *MapFunc[K, V]) Len() int { return m._root.size() }
 
+// At returns the key and value at index i.
+// It panics if i < 0 or i >= m.Len().
+func (m *Map[K, V]) At(i int) (K, V) { return m._root.at(i) }
+
+// At returns the key and value at index i.
+// It panics if i < 0 or i >= m.Len().
+func (m *MapFunc[K, V]) At(i int) (K, V) { return m._root.at(i) }
+
+func (x *node[K, V]) at(i int) (K, V) {
+	if x == nil {
+		panic("index out of range")
+	}
+	lsz := x.left.size()
+	if i == lsz {
+		return x.key, x.val
+	}
+	if i < lsz {
+		return x.left.at(i)
+	}
+	return x.right.at(i - lsz - 1)
+}
+
 type Range[K cmp.Ordered, V any] struct {
 	m      *Map[K, V]
 	lo, hi bound[K]
