@@ -330,7 +330,6 @@ func deleteRange[K, V any](m omap[K, V], lo, hi bound[K]) {
 func deleteBetweenInclusive[K, V any](m omap[K, V], lo, hi K) {
 	after := splitExclusive(m, hi)
 	_ = splitExclusive(m, lo)
-	// markDeleted(m, middle)
 	if after != nil {
 		// Add after to m.
 		// Both lo and all of after's keys are greater than any key in m.
@@ -351,7 +350,6 @@ func deleteAbove[K, V any](m omap[K, V], lo bound[K]) {
 	assert(lo.present)
 	val, ok := m.get(lo.key)
 	_ = splitExclusive(m, lo.key)
-	// markDeleted(m, after)
 	if !lo.inclusive && ok {
 		m.set(lo.key, val)
 	}
@@ -362,7 +360,6 @@ func deleteBelow[K, V any](m omap[K, V], hi bound[K]) {
 	val, ok := m.get(hi.key)
 	after := splitExclusive(m, hi.key)
 	// Keep after, discard m.
-	// markDeleted(m, *m.root())
 	*m.root() = after
 	if after != nil {
 		after.parent = nil
@@ -393,22 +390,6 @@ func splitExclusive[K, V any](m omap[K, V], key K) (after *node[K, V]) {
 	}
 	return x.right
 }
-
-// func markDeleted[K, V any](m omap[K, V], x *node[K, V]) {
-// 	if *m.nIterators() == 0 {
-// 		return
-// 	}
-// 	markDel(x)
-// }
-
-// func markDel[K, V any](x *node[K, V]) {
-// 	if x == nil {
-// 		return
-// 	}
-// 	x.pri = 0
-// 	markDel(x.left)
-// 	markDel(x.right)
-// }
 
 // All returns an iterator over the map m from smallest to largest key.
 // If m is modified during the iteration, some keys may not be visited.
@@ -467,20 +448,6 @@ func backward[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 		}
 	}
 }
-
-// // Scan returns an iterator over the map m
-// // limited to keys k satisfying lo ≤ k ≤ hi.
-// //
-// // If m is modified during the iteration, some keys may not be visited.
-// // No keys will be visited multiple times.
-// func (m *MapFunc[K, V]) Scan(lo, hi K) iter.Seq2[K, V] {
-// 	return func(yield func(K, V) bool) {
-// 		x, _ := findGE(m, lo)
-// 		for x != nil && m.cmp(x.key, hi) <= 0 && yield(x.key, x.val) {
-// 			x = x.next(m)
-// 		}
-// 	}
-// }
 
 // next returns the successor node of x in the treap,
 // even if x has been removed from the treap.
