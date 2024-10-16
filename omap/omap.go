@@ -3,9 +3,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// TODO: use gen counter to invalidate iterators on delete range
 // TODO: rewrite deleteRange to avoid insertions.
-// TODO: strengthen iteration guarantee
+// TODO: strengthen iteration guarantee doc
 
 // Package omap implements in-memory ordered maps.
 // [Map][K, V] is suitable for ordered types K,
@@ -19,17 +18,16 @@ package omap
 import (
 	"cmp"
 	"fmt"
-	"strings"
-	// "github.com/jba/omap/rng"
 	"iter"
 	"math/rand/v2"
+	"strings"
 )
 
 // A Map is a map[K]V ordered according to K's standard Go ordering.
 // The zero value of a Map is an empty Map ready to use.
 type Map[K cmp.Ordered, V any] struct {
-	_root       *node[K, V]
-	_nIterators int
+	_root *node[K, V]
+	_gen  uint64
 }
 
 // A MapFunc is a map[K]V ordered according to an arbitrary comparison function.
@@ -37,9 +35,9 @@ type Map[K cmp.Ordered, V any] struct {
 // Use [NewMapFunc] to create a [MapFunc].
 // A nil *MapFunc, like a nil Go map, can be read but not written and contains no entries.
 type MapFunc[K, V any] struct {
-	_root       *node[K, V]
-	cmp         func(K, K) int
-	_nIterators int
+	_root *node[K, V]
+	cmp   func(K, K) int
+	_gen  uint64
 }
 
 // A node is a node in the treap.
@@ -64,7 +62,7 @@ type omap[K, V any] interface {
 	// root returns &m._root; the caller can read or write *m.root().
 	root() **node[K, V]
 
-	nIterators() *int
+	gen() uint64
 
 	// find reports where a node with the key would be: at *pos.
 	// If *pos != nil, then key is present in the tree;
@@ -85,11 +83,8 @@ type omap[K, V any] interface {
 func (m *Map[K, V]) root() **node[K, V]     { return &m._root }
 func (m *MapFunc[K, V]) root() **node[K, V] { return &m._root }
 
-func (m *Map[K, V]) nIterators() *int     { return &m._nIterators }
-func (m *MapFunc[K, V]) nIterators() *int { return &m._nIterators }
-
-func startIter[K, V any](m omap[K, V]) { (*m.nIterators())++ }
-func endIter[K, V any](m omap[K, V])   { (*m.nIterators())-- }
+func (m *Map[K, V]) gen() uint64     { return m._gen }
+func (m *MapFunc[K, V]) gen() uint64 { return m._gen }
 
 func (m *Map[K, V]) clear()     { m.Clear() }
 func (m *MapFunc[K, V]) clear() { m.Clear() }
@@ -311,7 +306,7 @@ func deleteRange[K, V any](m omap[K, V], lo, hi bound[K]) {
 	// TODO: rewrite to avoid reinsertions.
 	switch {
 	case !lo.present && !hi.present:
-		m.clear()
+		m.clear() // TODO: avoid incrementing _gen twice
 	case lo.present && hi.present:
 		loVal, loPresent := m.get(lo.key)
 		hiVal, hiPresent := m.get(hi.key)
@@ -334,8 +329,8 @@ func deleteRange[K, V any](m omap[K, V], lo, hi bound[K]) {
 // Called deleteRange in rsc.io/omap.
 func deleteBetweenInclusive[K, V any](m omap[K, V], lo, hi K) {
 	after := splitExclusive(m, hi)
-	middle := splitExclusive(m, lo)
-	markDeleted(m, middle)
+	_ = splitExclusive(m, lo)
+	// markDeleted(m, middle)
 	if after != nil {
 		// Add after to m.
 		// Both lo and all of after's keys are greater than any key in m.
@@ -355,8 +350,8 @@ func deleteBetweenInclusive[K, V any](m omap[K, V], lo, hi K) {
 func deleteAbove[K, V any](m omap[K, V], lo bound[K]) {
 	assert(lo.present)
 	val, ok := m.get(lo.key)
-	after := splitExclusive(m, lo.key)
-	markDeleted(m, after)
+	_ = splitExclusive(m, lo.key)
+	// markDeleted(m, after)
 	if !lo.inclusive && ok {
 		m.set(lo.key, val)
 	}
@@ -367,7 +362,7 @@ func deleteBelow[K, V any](m omap[K, V], hi bound[K]) {
 	val, ok := m.get(hi.key)
 	after := splitExclusive(m, hi.key)
 	// Keep after, discard m.
-	markDeleted(m, *m.root())
+	// markDeleted(m, *m.root())
 	*m.root() = after
 	if after != nil {
 		after.parent = nil
@@ -399,21 +394,21 @@ func splitExclusive[K, V any](m omap[K, V], key K) (after *node[K, V]) {
 	return x.right
 }
 
-func markDeleted[K, V any](m omap[K, V], x *node[K, V]) {
-	if *m.nIterators() == 0 {
-		return
-	}
-	markDel(x)
-}
+// func markDeleted[K, V any](m omap[K, V], x *node[K, V]) {
+// 	if *m.nIterators() == 0 {
+// 		return
+// 	}
+// 	markDel(x)
+// }
 
-func markDel[K, V any](x *node[K, V]) {
-	if x == nil {
-		return
-	}
-	x.pri = 0
-	markDel(x.left)
-	markDel(x.right)
-}
+// func markDel[K, V any](x *node[K, V]) {
+// 	if x == nil {
+// 		return
+// 	}
+// 	x.pri = 0
+// 	markDel(x.left)
+// 	markDel(x.right)
+// }
 
 // All returns an iterator over the map m from smallest to largest key.
 // If m is modified during the iteration, some keys may not be visited.
@@ -432,15 +427,14 @@ func (m *MapFunc[K, V]) All() iter.Seq2[K, V] {
 // all returns an iterator over the map m from smallest to largest key, where *root is the root.
 func all[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
-		startIter(m)
-		defer endIter(m)
-
 		x := *m.root()
 		if x != nil {
 			x = x.minNode()
 		}
+		gen := m.gen()
 		for x != nil && yield(x.key, x.val) {
-			x = x.next(m)
+			x = x.next(m, gen != m.gen())
+			gen = m.gen()
 		}
 	}
 }
@@ -462,15 +456,14 @@ func (m *MapFunc[K, V]) Backward() iter.Seq2[K, V] {
 // backward returns an iterator over the map m from largest to smallest key, where *root is the root.
 func backward[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
-		startIter(m)
-		defer endIter(m)
-
 		x := *m.root()
 		if x != nil {
 			x = x.maxNode()
 		}
+		gen := m.gen()
 		for x != nil && yield(x.key, x.val) {
-			x = x.prev(m)
+			x = x.prev(m, gen != m.gen())
+			gen = m.gen()
 		}
 	}
 }
@@ -492,9 +485,9 @@ func backward[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 // next returns the successor node of x in the treap,
 // even if x has been removed from the treap.
 // x must not be nil.
-func (x *node[K, V]) next(m omap[K, V]) *node[K, V] {
-	if x.pri == 0 {
-		// x has been deleted.
+func (x *node[K, V]) next(m omap[K, V], reset bool) *node[K, V] {
+	if x.pri == 0 || reset {
+		// x has been deleted, or the iterator calling next has been invalidated.
 		// Find where x.key would be in the current tree.
 		var eq bool
 		x, eq = findGE(m, x.key)
@@ -516,9 +509,9 @@ func (x *node[K, V]) next(m omap[K, V]) *node[K, V] {
 // prev returns the predecessor node of x in the treap,
 // even if x has been removed from the treap.
 // x must not be nil.
-func (x *node[K, V]) prev(m omap[K, V]) *node[K, V] {
-	if x.pri == 0 {
-		// x has been deleted.
+func (x *node[K, V]) prev(m omap[K, V], reset bool) *node[K, V] {
+	if x.pri == 0 || reset {
+		// x has been deleted, or the iterator calling prev has been invalidated.
 		// Find where x.key would be in the current tree.
 		var eq bool
 		x, eq = findLE(m, x.key)
@@ -549,7 +542,7 @@ func findGE[K, V any](m omap[K, V], key K) (x *node[K, V], eq bool) {
 	if pos == &parent.left {
 		return parent, false
 	}
-	return parent.next(m), false
+	return parent.next(m, false), false
 }
 
 // findLE finds the node x in m with the greatest key k such that k ≤ key.
@@ -567,7 +560,7 @@ func findLE[K, V any](m omap[K, V], key K) (x *node[K, V], eq bool) {
 	// Deleted nodes are detached from the tree, so the parent cannot be deleted
 	// there will be no infinite recursion.
 	assert(parent.pri != 0)
-	return parent.prev(m), false
+	return parent.prev(m, false), false
 }
 
 func (x *node[K, V]) size() int {
@@ -650,11 +643,13 @@ func rotateRight[K, V any](m omap[K, V], y *node[K, V]) {
 // Clear deletes m[k] for all keys in m.
 func (m *Map[K, V]) Clear() {
 	m._root = nil
+	m._gen++
 }
 
 // Clear deletes m[k] for all keys in m.
 func (m *MapFunc[K, V]) Clear() {
 	m._root = nil
+	m._gen++
 }
 
 // Clone returns a copy of m.
@@ -879,7 +874,7 @@ func minNode[K, V any](r _range[K, V]) *node[K, V] {
 	}
 	n, eq := findGE(r.omap(), r.lo().key)
 	if eq && !r.lo().inclusive {
-		n = n.next(r.omap())
+		n = n.next(r.omap(), false)
 	}
 	if n == nil || !r.inHi(n.key) {
 		return nil
@@ -910,7 +905,7 @@ func maxNode[K, V any](r _range[K, V]) *node[K, V] {
 	}
 	n, eq := findLE(r.omap(), r.hi().key)
 	if eq && !r.lo().inclusive {
-		n = n.next(r.omap())
+		n = n.next(r.omap(), false)
 	}
 	if n == nil || !r.inHi(n.key) {
 		return nil
@@ -919,10 +914,16 @@ func maxNode[K, V any](r _range[K, V]) *node[K, V] {
 }
 
 // Clear deletes all the entries in r from r's underlying map.
-func (r Range[K, V]) Clear() { deleteRange(r.m, r.lo(), r.hi()) }
+func (r Range[K, V]) Clear() {
+	deleteRange(r.m, r.lo(), r.hi())
+	r.m._gen++
+}
 
 // Clear deletes all the entries in r from r's underlying map.
-func (r RangeFunc[K, V]) Clear() { deleteRange(r.m, r.lo(), r.hi()) }
+func (r RangeFunc[K, V]) Clear() {
+	deleteRange(r.m, r.lo(), r.hi())
+	r.m._gen++
+}
 
 // All returns an iterator over r's underlying map from smallest to largest key in r.
 // If the map is modified during the iteration, some keys may not be visited.
@@ -936,24 +937,24 @@ func (r RangeFunc[K, V]) All() iter.Seq2[K, V] { return rall(r) }
 
 func rall[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
-		startIter(r.omap())
-		defer endIter(r.omap())
-
-		x := *r.omap().root()
+		m := r.omap()
+		x := *m.root()
 		if x == nil {
 			return
 		}
 		if !r.lo().present {
 			x = x.minNode()
 		} else {
-			n, eq := findGE(r.omap(), r.lo().key)
+			n, eq := findGE(m, r.lo().key)
 			if eq && !r.lo().inclusive {
-				n = n.next(r.omap())
+				n = n.next(m, false)
 			}
 			x = n
 		}
+		gen := m.gen()
 		for x != nil && r.inHi(x.key) && yield(x.key, x.val) {
-			x = x.next(r.omap())
+			x = x.next(m, gen != m.gen())
+			gen = m.gen()
 		}
 	}
 }
@@ -970,24 +971,24 @@ func (r RangeFunc[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
 
 func rbackward[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
-		startIter(r.omap())
-		defer endIter(r.omap())
-
-		x := *r.omap().root()
+		m := r.omap()
+		x := *m.root()
 		if x == nil {
 			return
 		}
 		if !r.hi().present {
 			x = x.maxNode()
 		} else {
-			n, eq := findLE(r.omap(), r.hi().key)
+			n, eq := findLE(m, r.hi().key)
 			if eq && !r.hi().inclusive {
-				n = n.prev(r.omap())
+				n = n.prev(m, false)
 			}
 			x = n
 		}
+		gen := m.gen()
 		for x != nil && r.inLo(x.key) && yield(x.key, x.val) {
-			x = x.prev(r.omap())
+			x = x.prev(m, gen != m.gen())
+			gen = m.gen()
 		}
 	}
 }

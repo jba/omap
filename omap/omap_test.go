@@ -11,6 +11,7 @@ import (
 	"cmp"
 	"fmt"
 	"iter"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"testing"
@@ -355,15 +356,15 @@ func TestDeleteRange(t *testing.T) {
 
 func TestAllDeleteRange(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
-		for _, mode := range []string{"prev", "current", "next"} {
+		var deleteLo, deleteHi int
+		for _, mode := range []string{"prev", "current", "next", "clear"} {
 			for N := range 8 {
 				for target := 1; target <= 2*N-1; target += 2 {
 					m := newMap()
 					_, slice := permute(m, N)
 					var have []int
-					var deleteLo, deleteHi int
 					for k, _ := range m.All() {
-						clearRange(m, true, k, target, mode, slice)
+						deleteLo, deleteHi = clearRange(m, true, k, target, mode, slice)
 						have = append(have, k)
 					}
 					want := nonzeroIndexes(slice)
@@ -379,7 +380,7 @@ func TestAllDeleteRange(t *testing.T) {
 
 func TestBackwardDeleteRange(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
-		for _, mode := range []string{"prev", "current", "next"} {
+		for _, mode := range []string{"prev", "current", "next", "clear"} {
 			for N := range 8 {
 				for target := 1; target <= 2*N-1; target += 2 {
 					m := newMap()
@@ -387,7 +388,7 @@ func TestBackwardDeleteRange(t *testing.T) {
 					var have []int
 					var deleteLo, deleteHi int
 					for k, _ := range m.Backward() {
-						clearRange(m, false, k, target, mode, slice)
+						deleteLo, deleteHi = clearRange(m, false, k, target, mode, slice)
 						have = append(have, k)
 					}
 					want := nonzeroIndexes(slice)
@@ -402,7 +403,7 @@ func TestBackwardDeleteRange(t *testing.T) {
 	})
 }
 
-func clearRange(m Interface[int, int], forwards bool, k, target int, mode string, slice []int) {
+func clearRange(m Interface[int, int], forwards bool, k, target int, mode string, slice []int) (int, int) {
 	var deleteLo, deleteHi int
 	if k == target {
 		switch mode {
@@ -412,6 +413,9 @@ func clearRange(m Interface[int, int], forwards bool, k, target int, mode string
 			deleteLo, deleteHi = k-2, k+2
 		case "next":
 			deleteLo, deleteHi = k+1, k+5
+		case "clear":
+			deleteLo = math.MinInt
+			deleteHi = math.MaxInt - 1
 		}
 		newRange(m, including(deleteLo), including(deleteHi)).Clear()
 		var lo, hi int
@@ -426,6 +430,7 @@ func clearRange(m Interface[int, int], forwards bool, k, target int, mode string
 			slice[i] = 0
 		}
 	}
+	return deleteLo, deleteHi
 }
 
 func TestAt(t *testing.T) {
