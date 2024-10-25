@@ -801,6 +801,28 @@ func (r Range[K, V]) Below(hi K) Range[K, V] {
 	return r
 }
 
+// To returns a RangeFunc with upper bound hi, inclusive and the same lower bound
+// as r.
+// It panics if r already has an upper bound.
+func (r RangeFunc[K, V]) To(hi K) RangeFunc[K, V] {
+	if r._hi.present {
+		panic("range already has an upper bound")
+	}
+	r._hi = including(hi)
+	return r
+}
+
+// Below returns a RangeFunc with upper bound hi, exclusive and the same lower bound
+// as r.
+// It panics if r already has an upper bound.
+func (r RangeFunc[K, V]) Below(hi K) RangeFunc[K, V] {
+	if r._hi.present {
+		panic("range already has an upper bound")
+	}
+	r._hi = excluding(hi)
+	return r
+}
+
 // Min returns the minimum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
 func (r Range[K, V]) Min() (K, bool) { return rmin(r) }
@@ -825,7 +847,11 @@ func minNode[K, V any](r _range[K, V]) *node[K, V] {
 		return nil
 	}
 	if !r.lo().present {
-		return x.minNode()
+		x = x.minNode()
+		if r.inHi(x.key) {
+			return x
+		}
+		return nil
 	}
 	n, eq := findGE(r.omap(), r.lo().key)
 	if eq && !r.lo().inclusive {
@@ -860,14 +886,18 @@ func maxNode[K, V any](r _range[K, V]) *node[K, V] {
 	if x == nil {
 		return nil
 	}
-	if !r.lo().present {
-		return x.minNode()
+	if !r.hi().present {
+		x = x.maxNode()
+		if r.inLo(x.key) {
+			return x
+		}
+		return nil
 	}
 	n, eq := findLE(r.omap(), r.hi().key)
-	if eq && !r.lo().inclusive {
-		n = n.next(r.omap(), false)
+	if eq && !r.hi().inclusive {
+		n = n.prev(r.omap(), false)
 	}
-	if n == nil || !r.inHi(n.key) {
+	if n == nil || !r.inLo(n.key) {
 		return nil
 	}
 	return n

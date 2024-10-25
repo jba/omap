@@ -13,6 +13,7 @@ import (
 	"iter"
 	"math"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -145,6 +146,60 @@ func TestMax(t *testing.T) {
 	})
 }
 
+func TestMinRange(t *testing.T) {
+	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		for N := range 11 {
+			for blo, bhi := range bounds(N) {
+				m := newMap()
+				_, slice := permute(m, N)
+				r := newRange(m, blo, bhi)
+				have, ok := r.Min()
+				want := 0
+				wok := false
+				for k, v := range slice {
+					if v != 0 && in(k, blo, bhi) {
+						want = k
+						wok = true
+						break
+					}
+				}
+				if have != want || ok != wok {
+					t.Errorf("N=%d, r=%s: Min() returned %d, %t want %d, %t",
+						N, rangeString(r), have, ok, want, wok)
+				}
+			}
+		}
+	})
+}
+
+func TestMaxRange(t *testing.T) {
+	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		for N := range 11 {
+			for blo, bhi := range bounds(N) {
+				m := newMap()
+				_, slice := permute(m, N)
+				r := newRange(m, blo, bhi)
+				have, ok := r.Max()
+				want := 0
+				wok := false
+				slices.Reverse(slice)
+				for k, v := range slice {
+					k = len(slice) - k - 1
+					if v != 0 && in(k, blo, bhi) {
+						want = k
+						wok = true
+						break
+					}
+				}
+				if have != want || ok != wok {
+					t.Errorf("N=%d, r=%s: Max() returned %d, %t want %d, %t",
+						N, rangeString(r), have, ok, want, wok)
+				}
+			}
+		}
+	})
+}
+
 func TestAll(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
 		for N := range 11 {
@@ -220,14 +275,8 @@ func TestAllRange(t *testing.T) {
 		for N := range 11 {
 			m := newMap()
 			_, slice := permute(m, N)
-			for hi := range slice {
-				for _, bhi := range []bound[int]{including(hi), excluding(hi), inf()} {
-					for lo := range hi + 1 {
-						for _, blo := range []bound[int]{including(lo), excluding(lo), inf()} {
-							check(m, slice, blo, bhi)
-						}
-					}
-				}
+			for blo, bhi := range bounds(len(slice)) {
+				check(m, slice, blo, bhi)
 			}
 		}
 	})
@@ -262,14 +311,8 @@ func TestBackwardRange(t *testing.T) {
 		for N := range 11 {
 			m := newMap()
 			_, slice := permute(m, N)
-			for hi := range slice {
-				for _, bhi := range []bound[int]{including(hi), excluding(hi), inf()} {
-					for lo := range hi + 1 {
-						for _, blo := range []bound[int]{including(lo), excluding(lo), inf()} {
-							check(m, slice, blo, bhi)
-						}
-					}
-				}
+			for blo, bhi := range bounds(len(slice)) {
+				check(m, slice, blo, bhi)
 			}
 		}
 	})
@@ -310,6 +353,42 @@ func TestDelete(t *testing.T) {
 	})
 }
 
+func TestClone(t *testing.T) {
+	equal := func(i1, i2 Interface[int, int]) bool {
+		if i1.Len() != i2.Len() {
+			return false
+		}
+		next, stop := iter.Pull2(i2.All())
+		defer stop()
+		for k1, v1 := range i1.All() {
+			k2, v2, ok := next()
+			if !ok || k1 != k2 || v1 != v2 {
+				return false
+			}
+		}
+		return true
+	}
+
+	t.Run("Map", func(t *testing.T) {
+		for N := range 11 {
+			m := &Map[int, int]{}
+			permute(m, N)
+			if !equal(m, m.Clone()) {
+				t.Errorf("N=%d: not equal", N)
+			}
+		}
+	})
+	t.Run("MapFunc", func(t *testing.T) {
+		for N := range 11 {
+			m := NewMapFunc[int, int](func(i1, i2 int) int { return cmp.Compare(i1, i2) })
+			permute(m, N)
+			if !equal(m, m.Clone()) {
+				t.Errorf("N=%d: not equal", N)
+			}
+		}
+	})
+}
+
 func TestDeleteRange(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
 		check := func(N int, blo, bhi bound[int], clearReverse bool) {
@@ -336,22 +415,9 @@ func TestDeleteRange(t *testing.T) {
 		}
 
 		for N := range 11 {
-			for hi := range 2*N + 1 {
-				for _, bhi := range []bound[int]{including(hi), excluding(hi)} {
-					for lo := range hi + 1 {
-						for _, blo := range []bound[int]{including(lo), excluding(lo)} {
-							check(N, blo, bhi, lo < hi)
-						}
-					}
-				}
+			for blo, bhi := range bounds(2*N + 1) {
+				check(N, blo, bhi, blo.present && bhi.present && blo.key < bhi.key)
 			}
-			for x := range 2*N + 1 {
-				check(N, including(x), inf(), false)
-				check(N, excluding(x), inf(), false)
-				check(N, inf(), including(x), false)
-				check(N, inf(), excluding(x), false)
-			}
-			check(N, inf(), inf(), false)
 		}
 	})
 }
@@ -480,10 +546,59 @@ func chsz[K, V any](t *testing.T, x *node[K, V]) {
 	}
 }
 
+func TestRangeCreation(t *testing.T) {
+	t.Run("Map", func(t *testing.T) {
+		m := &Map[int, int]{}
+
+		for _, tc := range []struct {
+			r    Range[int, int]
+			want string
+		}{
+			{m.From(2), "[2, ∞)"},
+			{m.Above(2), "(2, ∞)"},
+			{m.To(2), "(-∞, 2]"},
+			{m.Below(2), "(-∞, 2)"},
+			{m.From(2).To(5), "[2, 5]"},
+			{m.From(2).Below(5), "[2, 5)"},
+			{m.Above(2).To(5), "(2, 5]"},
+			{m.Above(2).Below(5), "(2, 5)"},
+		} {
+			got := rangeString(tc.r)
+			if got != tc.want {
+				t.Errorf("got %s, want %s", got, tc.want)
+			}
+		}
+	})
+
+	t.Run("MapFunc", func(t *testing.T) {
+		m := NewMapFunc[int, int](nil)
+		for _, tc := range []struct {
+			r    RangeFunc[int, int]
+			want string
+		}{
+			{m.From(2), "[2, ∞)"},
+			{m.Above(2), "(2, ∞)"},
+			{m.To(2), "(-∞, 2]"},
+			{m.Below(2), "(-∞, 2)"},
+			{m.From(2).To(5), "[2, 5]"},
+			{m.From(2).Below(5), "[2, 5)"},
+			{m.Above(2).To(5), "(2, 5]"},
+			{m.Above(2).Below(5), "(2, 5)"},
+		} {
+			got := rangeString(tc.r)
+			if got != tc.want {
+				t.Errorf("got %s, want %s", got, tc.want)
+			}
+		}
+	})
+}
+
 type iRange[K, V any] interface {
 	Clear()
 	All() iter.Seq2[K, V]
 	Backward() iter.Seq2[K, V]
+	Min() (K, bool)
+	Max() (K, bool)
 }
 
 func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
@@ -498,6 +613,73 @@ func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K
 }
 
 func inf() bound[int] { return bound[int]{} }
+
+func bounds(n int) iter.Seq2[bound[int], bound[int]] {
+	return func(yield func(_, _ bound[int]) bool) {
+		for hi := range n {
+			for _, bhi := range []bound[int]{including(hi), excluding(hi), inf()} {
+				for lo := range hi + 1 {
+					for _, blo := range []bound[int]{including(lo), excluding(lo), inf()} {
+						if blo == inf() && bhi == inf() {
+							continue
+						}
+						if !yield(blo, bhi) {
+							return
+						}
+					}
+				}
+			}
+		}
+		// Interval past the end.
+		if !yield(excluding(n), inf()) {
+			return
+		}
+		// Yield the infinite interval even if n == 0.
+		yield(inf(), inf())
+	}
+}
+
+func TestBounds(t *testing.T) {
+	got := map[string]bool{}
+	for blo, bhi := range bounds(2) {
+		got[rangeString(newRange(&Map[int, int]{}, blo, bhi))] = true
+	}
+	wants := []string{
+		"(0, 0)",
+		"(0, 1)",
+		"(0, ∞)",
+		"[0, 0)",
+		"[0, 1)",
+		"[0, ∞)",
+		"(0, 0]",
+		"(0, 1]",
+		"[0, 0]",
+		"[0, 1]",
+
+		"(1, 1)",
+		"(1, ∞)",
+		"[1, 1)",
+		"[1, ∞)",
+		"(1, 1]",
+		"[1, 1]",
+
+		"(-∞, 0)",
+		"(-∞, 0]",
+		"(-∞, 1)",
+		"(-∞, 1]",
+
+		"(2, ∞)",
+		"(-∞, ∞)",
+	}
+
+	want := map[string]bool{}
+	for _, w := range wants {
+		want[w] = true
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
 
 func keep(s []int, f func(int) bool) []int {
 	var r []int
