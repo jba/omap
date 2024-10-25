@@ -165,7 +165,7 @@ func TestMinRange(t *testing.T) {
 				}
 				if have != want || ok != wok {
 					t.Errorf("N=%d, r=%s: Min() returned %d, %t want %d, %t",
-						N, rangeString(r), have, ok, want, wok)
+						N, rdump(r), have, ok, want, wok)
 				}
 			}
 		}
@@ -193,7 +193,7 @@ func TestMaxRange(t *testing.T) {
 				}
 				if have != want || ok != wok {
 					t.Errorf("N=%d, r=%s: Max() returned %d, %t want %d, %t",
-						N, rangeString(r), have, ok, want, wok)
+						N, rdump(r), have, ok, want, wok)
 				}
 			}
 		}
@@ -304,7 +304,7 @@ func TestBackwardRange(t *testing.T) {
 			}
 			slices.Reverse(want)
 			if !slices.Equal(have, want) {
-				t.Errorf("Backward(%s) = %v, want %v", rangeString(r), have, want)
+				t.Errorf("Backward(%s) = %v, want %v", rdump(r), have, want)
 			}
 		}
 
@@ -407,7 +407,7 @@ func TestDeleteRange(t *testing.T) {
 			want := keep(slice, func(k int) bool { return !in(k, blo, bhi) })
 			if !slices.Equal(have, want) {
 				t.Errorf("N=%d, after Clear(%s), All() = %v, want %v",
-					N, rangeString(r), have, want)
+					N, rdump(r), have, want)
 			}
 			if g, w := m.Len(), len(have); g != w {
 				t.Errorf("m.Len() = %d, want %d", g, w)
@@ -563,7 +563,7 @@ func TestRangeCreation(t *testing.T) {
 			{m.Above(2).To(5), "(2, 5]"},
 			{m.Above(2).Below(5), "(2, 5)"},
 		} {
-			got := rangeString(tc.r)
+			got := rdump(tc.r)
 			if got != tc.want {
 				t.Errorf("got %s, want %s", got, tc.want)
 			}
@@ -585,7 +585,7 @@ func TestRangeCreation(t *testing.T) {
 			{m.Above(2).To(5), "(2, 5]"},
 			{m.Above(2).Below(5), "(2, 5)"},
 		} {
-			got := rangeString(tc.r)
+			got := rdump(tc.r)
 			if got != tc.want {
 				t.Errorf("got %s, want %s", got, tc.want)
 			}
@@ -599,6 +599,33 @@ type iRange[K, V any] interface {
 	Backward() iter.Seq2[K, V]
 	Min() (K, bool)
 	Max() (K, bool)
+}
+
+func rdump[K, V any](ir iRange[K, V]) string {
+	r := ir.(_range[K, V])
+	var b strings.Builder
+	if !r.lo().present {
+		b.WriteString("(-∞")
+	} else {
+		if r.lo().inclusive {
+			b.WriteByte('[')
+		} else {
+			b.WriteByte('(')
+		}
+		fmt.Fprintf(&b, "%v", r.lo().key)
+	}
+	b.WriteString(", ")
+	if !r.hi().present {
+		b.WriteString("∞)")
+	} else {
+		fmt.Fprintf(&b, "%v", r.hi().key)
+		if r.hi().inclusive {
+			b.WriteByte(']')
+		} else {
+			b.WriteByte(')')
+		}
+	}
+	return b.String()
 }
 
 func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
@@ -630,7 +657,8 @@ func bounds(n int) iter.Seq2[bound[int], bound[int]] {
 				}
 			}
 		}
-		// Interval past the end.
+		// Produce an interval past the end. We already generate one before
+		// the beginning, (-∞, 0).
 		if !yield(excluding(n), inf()) {
 			return
 		}
@@ -642,7 +670,7 @@ func bounds(n int) iter.Seq2[bound[int], bound[int]] {
 func TestBounds(t *testing.T) {
 	got := map[string]bool{}
 	for blo, bhi := range bounds(2) {
-		got[rangeString(newRange(&Map[int, int]{}, blo, bhi))] = true
+		got[rdump(newRange(&Map[int, int]{}, blo, bhi))] = true
 	}
 	wants := []string{
 		"(0, 0)",
@@ -720,34 +748,6 @@ func TestIn(t *testing.T) {
 	t.Log(keep(slice, func(k int) bool { return !in(k, blo, bhi) }))
 }
 
-// For debugging.
-func rangeString[K, V any](ir iRange[K, V]) string {
-	r := ir.(_range[K, V])
-	var b strings.Builder
-	if !r.lo().present {
-		b.WriteString("(-∞")
-	} else {
-		if r.lo().inclusive {
-			b.WriteByte('[')
-		} else {
-			b.WriteByte('(')
-		}
-		fmt.Fprintf(&b, "%v", r.lo().key)
-	}
-	b.WriteString(", ")
-	if !r.hi().present {
-		b.WriteString("∞)")
-	} else {
-		fmt.Fprintf(&b, "%v", r.hi().key)
-		if r.hi().inclusive {
-			b.WriteByte(']')
-		} else {
-			b.WriteByte(')')
-		}
-	}
-	return b.String()
-}
-
 func TestRangeString(t *testing.T) {
 	m := newMap(nil)
 	for _, test := range []struct {
@@ -762,7 +762,7 @@ func TestRangeString(t *testing.T) {
 		{newRange(m, excluding(1), including(3)), "(1, 3]"},
 		{newRange(m, excluding(1), excluding(3)), "(1, 3)"},
 	} {
-		got := rangeString[int, int](test.r)
+		got := rdump[int, int](test.r)
 		if got != test.want {
 			t.Errorf("%v: got %q, want %q", test.r, got, test.want)
 		}
