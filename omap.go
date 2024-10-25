@@ -4,7 +4,6 @@
 // license that can be found in the LICENSE file.
 
 // TODO: rewrite deleteRange to avoid insertions.
-// TODO: strengthen iteration guarantee doc
 
 // Package omap implements in-memory ordered maps.
 // [Map][K, V] is suitable for ordered types K,
@@ -17,10 +16,8 @@ package omap
 
 import (
 	"cmp"
-	"fmt"
 	"iter"
 	"math/rand/v2"
-	"strings"
 )
 
 // A Map is a map[K]V ordered according to K's standard Go ordering.
@@ -48,7 +45,7 @@ type node[K any, V any] struct {
 	key    K
 	val    V
 	pri    uint64
-	_size  int
+	_size  int // number of keys in this node's subtree
 }
 
 // NewMapFunc returns a new MapFunc[K, V] ordered according to cmp.
@@ -98,7 +95,8 @@ func (m *MapFunc[K, V]) set(k K, v V) { m.Set(k, v) }
 // find looks up the key k in the map.
 // It returns the parent of k as well as the position where k would be attached.
 // *pos is non-nil if k is present, nil if k is missing.
-// parent is nil if there are no nodes in the map, or if there is only one node and it's k.
+// parent is nil if there are no nodes in the map, or if there is only one node and
+// it's k.
 func (m *Map[K, V]) find(k K) (pos **node[K, V], parent *node[K, V]) {
 	pos = &m._root
 	for x := *pos; x != nil; x = *pos {
@@ -272,13 +270,13 @@ func (x *node[K, V]) minNode() *node[K, V] {
 	return x
 }
 
-// Max returns the Maximum key in m and true.
+// Max returns the maximum key in m and true.
 // If m is empty, the second return value is false.
 func (m *Map[K, V]) Max() (K, bool) {
 	return _max(m)
 }
 
-// Max returns the Maximum key in m and true.
+// Max returns the maximum key in m and true.
 // If m is empty, the second return value is false.
 func (m *MapFunc[K, v]) Max() (K, bool) {
 	return _max(m)
@@ -392,15 +390,22 @@ func splitExclusive[K, V any](m omap[K, V], key K) (after *node[K, V]) {
 }
 
 // All returns an iterator over the map m from smallest to largest key.
-// If m is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
+// If m is modified during the iteration,
+// All makes this guarantee: when a key is yielded, it is the successor of the key
+// that was previously yielded (or the minimum key in the map, if it is the first
+// key).
+//
+// For example, if the map contains keys 10 and 20, the iterator has yielded 10,
+// and then 15 is inserted, then the next yielded key will be 15.
+//
+// Another example: if the map contains keys 10, 20 and 30, the iterator has yielded
+// 10, and then 20 is deleted, then the next yielded key will be 30.
 func (m *Map[K, V]) All() iter.Seq2[K, V] {
 	return all(m)
 }
 
 // All returns an iterator over the map m from smallest to largest key.
-// If m is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
+// See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (m *MapFunc[K, V]) All() iter.Seq2[K, V] {
 	return all(m)
 }
@@ -421,15 +426,13 @@ func all[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 }
 
 // Backward returns an iterator over the map m from largest to smallest key.
-// If m is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
+// See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (m *Map[K, V]) Backward() iter.Seq2[K, V] {
 	return backward(m)
 }
 
 // Backward returns an iterator over the map m from largest to smallest key.
-// If m is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
+// See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (m *MapFunc[K, V]) Backward() iter.Seq2[K, V] {
 	return backward(m)
 }
@@ -619,12 +622,12 @@ func (m *MapFunc[K, V]) Clear() {
 	m._gen++
 }
 
-// Clone returns a copy of m.
+// Clone returns a shallow copy of m.
 func (m *Map[K, V]) Clone() *Map[K, V] {
 	return &Map[K, V]{_root: m._root.clone(nil)}
 }
 
-// Clone returns a copy of m.
+// Clone returns a shallow copy of m.
 func (m *MapFunc[K, V]) Clone() *MapFunc[K, V] {
 	m2 := NewMapFunc[K, V](m.cmp)
 	m2._root = m._root.clone(nil)
@@ -683,16 +686,25 @@ func (m *Map[K, V]) To(hi K) Range[K, V] { return Range[K, V]{m: m, _hi: includi
 // Below returns a Range with upper bound hi, exclusive, and no lower bound.
 func (m *Map[K, V]) Below(hi K) Range[K, V] { return Range[K, V]{m: m, _hi: excluding(hi)} }
 
-func (m *MapFunc[K, V]) From(lo K) RangeFunc[K, V]  { return RangeFunc[K, V]{m: m, _lo: including(lo)} }
+// From returns a Range with lower bound lo, inclusive, and no upper bound.
+func (m *MapFunc[K, V]) From(lo K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _lo: including(lo)} }
+
+// Above returns a Range with lower bound lo, exclusive, and no upper bound.
 func (m *MapFunc[K, V]) Above(lo K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _lo: excluding(lo)} }
-func (m *MapFunc[K, V]) To(hi K) RangeFunc[K, V]    { return RangeFunc[K, V]{m: m, _hi: including(hi)} }
+
+// To returns a Range with upper bound hi, inclusive, and no lower bound.
+func (m *MapFunc[K, V]) To(hi K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _hi: including(hi)} }
+
+// Below returns a Range with upper bound hi, exclusive, and no lower bound.
 func (m *MapFunc[K, V]) Below(hi K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _hi: excluding(hi)} }
 
+// A Range is a subsequence of keys in a [Map].
 type Range[K cmp.Ordered, V any] struct {
 	m        *Map[K, V]
 	_lo, _hi bound[K]
 }
 
+// A Range is a subsequence of keys in a [MapFunc].
 type RangeFunc[K, V any] struct {
 	m        *MapFunc[K, V]
 	_lo, _hi bound[K]
@@ -769,35 +781,6 @@ func (r RangeFunc[K, V]) inLo(k K) bool {
 	return r.m.cmp(k, r._lo.key) > 0
 }
 
-func (r Range[K, V]) String() string     { return rstr(r) }
-func (r RangeFunc[K, V]) String() string { return rstr(r) }
-
-func rstr[K, V any](r _range[K, V]) string {
-	var b strings.Builder
-	if !r.lo().present {
-		b.WriteString("(-∞")
-	} else {
-		if r.lo().inclusive {
-			b.WriteByte('[')
-		} else {
-			b.WriteByte('(')
-		}
-		fmt.Fprintf(&b, "%v", r.lo().key)
-	}
-	b.WriteString(", ")
-	if !r.hi().present {
-		b.WriteString("∞)")
-	} else {
-		fmt.Fprintf(&b, "%v", r.hi().key)
-		if r.hi().inclusive {
-			b.WriteByte(']')
-		} else {
-			b.WriteByte(')')
-		}
-	}
-	return b.String()
-}
-
 // To returns a Range with upper bound hi, inclusive and the same lower bound as r.
 // It panics if r already has an upper bound.
 func (r Range[K, V]) To(hi K) Range[K, V] {
@@ -818,7 +801,12 @@ func (r Range[K, V]) Below(hi K) Range[K, V] {
 	return r
 }
 
-func (r Range[K, V]) Min() (K, bool)     { return rmin(r) }
+// Min returns the minimum key in r and true.
+// If m is empty, the second return value is false.
+func (r Range[K, V]) Min() (K, bool) { return rmin(r) }
+
+// Min returns the minimum key in r and true.
+// If m is empty, the second return value is false.
 func (r RangeFunc[K, V]) Min() (K, bool) { return rmin(r) }
 
 func rmin[K, V any](r _range[K, V]) (K, bool) {
@@ -849,7 +837,12 @@ func minNode[K, V any](r _range[K, V]) *node[K, V] {
 	return n
 }
 
-func (r Range[K, V]) Max() (K, bool)     { return rmax(r) }
+// Max returns the maximum key in r and true.
+// If m is empty, the second return value is false.
+func (r Range[K, V]) Max() (K, bool) { return rmax(r) }
+
+// Max returns the maximum key in r and true.
+// If m is empty, the second return value is false.
 func (r RangeFunc[K, V]) Max() (K, bool) { return rmax(r) }
 
 func rmax[K, V any](r _range[K, V]) (K, bool) {
@@ -893,13 +886,11 @@ func (r RangeFunc[K, V]) Clear() {
 }
 
 // All returns an iterator over r's underlying map from smallest to largest key in r.
-// If the map is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
+// See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r Range[K, V]) All() iter.Seq2[K, V] { return rall(r) }
 
 // All returns an iterator over r's underlying map from smallest to largest key in r.
-// If the map is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
+// See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r RangeFunc[K, V]) All() iter.Seq2[K, V] { return rall(r) }
 
 func rall[K, V any](r _range[K, V]) iter.Seq2[K, V] {
@@ -927,13 +918,11 @@ func rall[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 }
 
 // Backward returns an iterator over r's underlying map from largest to smallest key in r.
-// If the map is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
+// See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r Range[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
 
 // Backward returns an iterator over r's underlying map from largest to smallest key in r.
-// If the map is modified during the iteration, some keys may not be visited.
-// No keys will be visited multiple times.
+// See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r RangeFunc[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
 
 func rbackward[K, V any](r _range[K, V]) iter.Seq2[K, V] {

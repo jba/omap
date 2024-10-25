@@ -14,6 +14,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -254,7 +255,7 @@ func TestBackwardRange(t *testing.T) {
 			}
 			slices.Reverse(want)
 			if !slices.Equal(have, want) {
-				t.Errorf("Backward(%s) = %v, want %v", r, have, want)
+				t.Errorf("Backward(%s) = %v, want %v", rangeString(r), have, want)
 			}
 		}
 
@@ -326,7 +327,8 @@ func TestDeleteRange(t *testing.T) {
 			}
 			want := keep(slice, func(k int) bool { return !in(k, blo, bhi) })
 			if !slices.Equal(have, want) {
-				t.Errorf("N=%d, after Clear(%s), All() = %v, want %v", N, r, have, want)
+				t.Errorf("N=%d, after Clear(%s), All() = %v, want %v",
+					N, rangeString(r), have, want)
 			}
 			if g, w := m.Len(), len(have); g != w {
 				t.Errorf("m.Len() = %d, want %d", g, w)
@@ -478,27 +480,6 @@ func chsz[K, V any](t *testing.T, x *node[K, V]) {
 	}
 }
 
-func TestRangeString(t *testing.T) {
-	m := newMap(nil)
-	for _, test := range []struct {
-		r    iRange[int, int]
-		want string
-	}{
-		{newRange(m, inf(), inf()), "(-∞, ∞)"},
-		{newRange(m, including(1), inf()), "[1, ∞)"},
-		{newRange(m, inf(), excluding(3)), "(-∞, 3)"},
-		{newRange(m, including(1), including(3)), "[1, 3]"},
-		{newRange(m, including(1), excluding(3)), "[1, 3)"},
-		{newRange(m, excluding(1), including(3)), "(1, 3]"},
-		{newRange(m, excluding(1), excluding(3)), "(1, 3)"},
-	} {
-		got := fmt.Sprint(test.r)
-		if got != test.want {
-			t.Errorf("%v: got %q, want %q", test.r, got, test.want)
-		}
-	}
-}
-
 type iRange[K, V any] interface {
 	Clear()
 	All() iter.Seq2[K, V]
@@ -555,4 +536,53 @@ func TestIn(t *testing.T) {
 	var blo bound[int]
 	bhi := including(3)
 	t.Log(keep(slice, func(k int) bool { return !in(k, blo, bhi) }))
+}
+
+// For debugging.
+func rangeString[K, V any](ir iRange[K, V]) string {
+	r := ir.(_range[K, V])
+	var b strings.Builder
+	if !r.lo().present {
+		b.WriteString("(-∞")
+	} else {
+		if r.lo().inclusive {
+			b.WriteByte('[')
+		} else {
+			b.WriteByte('(')
+		}
+		fmt.Fprintf(&b, "%v", r.lo().key)
+	}
+	b.WriteString(", ")
+	if !r.hi().present {
+		b.WriteString("∞)")
+	} else {
+		fmt.Fprintf(&b, "%v", r.hi().key)
+		if r.hi().inclusive {
+			b.WriteByte(']')
+		} else {
+			b.WriteByte(')')
+		}
+	}
+	return b.String()
+}
+
+func TestRangeString(t *testing.T) {
+	m := newMap(nil)
+	for _, test := range []struct {
+		r    iRange[int, int]
+		want string
+	}{
+		{newRange(m, inf(), inf()), "(-∞, ∞)"},
+		{newRange(m, including(1), inf()), "[1, ∞)"},
+		{newRange(m, inf(), excluding(3)), "(-∞, 3)"},
+		{newRange(m, including(1), including(3)), "[1, 3]"},
+		{newRange(m, including(1), excluding(3)), "[1, 3)"},
+		{newRange(m, excluding(1), including(3)), "(1, 3]"},
+		{newRange(m, excluding(1), excluding(3)), "(1, 3)"},
+	} {
+		got := rangeString[int, int](test.r)
+		if got != test.want {
+			t.Errorf("%v: got %q, want %q", test.r, got, test.want)
+		}
+	}
 }
