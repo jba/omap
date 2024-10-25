@@ -704,7 +704,7 @@ type Range[K cmp.Ordered, V any] struct {
 	_lo, _hi bound[K]
 }
 
-// A Range is a subsequence of keys in a [MapFunc].
+// A RangeFunc is a subsequence of keys in a [MapFunc].
 type RangeFunc[K, V any] struct {
 	m        *MapFunc[K, V]
 	_lo, _hi bound[K]
@@ -801,11 +801,11 @@ func (r Range[K, V]) Below(hi K) Range[K, V] {
 	return r
 }
 
-// Min returns the minimum key in r and true.
+// Min returns the minimum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
 func (r Range[K, V]) Min() (K, bool) { return rmin(r) }
 
-// Min returns the minimum key in r and true.
+// Min returns the minimum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
 func (r RangeFunc[K, V]) Min() (K, bool) { return rmin(r) }
 
@@ -837,11 +837,11 @@ func minNode[K, V any](r _range[K, V]) *node[K, V] {
 	return n
 }
 
-// Max returns the maximum key in r and true.
+// Max returns the maximum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
 func (r Range[K, V]) Max() (K, bool) { return rmax(r) }
 
-// Max returns the maximum key in r and true.
+// Max returns the maximum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
 func (r RangeFunc[K, V]) Max() (K, bool) { return rmax(r) }
 
