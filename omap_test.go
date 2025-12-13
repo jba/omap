@@ -25,8 +25,8 @@ type Interface[K, V any] interface {
 	Delete(key K) bool
 	Get(key K) (V, bool)
 	Set(key K, val V) (V, bool)
-	Min() (K, bool)
-	Max() (K, bool)
+	Min() (K, V, bool)
+	Max() (K, V, bool)
 	Len() int
 	At(int) (K, V)
 	root() **node[K, V]
@@ -112,16 +112,21 @@ func TestMin(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
 		for N := range 11 {
 			m := newMap()
-			permute(m, N)
-			have, ok := m.Min()
-			want := 1
-			wok := true
+			_, slice := permute(m, N)
+			haveKey, haveVal, ok := m.Min()
+			wantKey := 1
+			var wantVal int
+			var wok bool
 			if N == 0 {
-				want = 0
+				wantKey = 0
+				wantVal = 0
 				wok = false
+			} else {
+				wantVal = slice[wantKey]
+				wok = true
 			}
-			if have != want || ok != wok {
-				t.Errorf("N=%d Min() returned %d, %t want %d, %t", N, have, ok, want, wok)
+			if haveKey != wantKey || haveVal != wantVal || ok != wok {
+				t.Errorf("N=%d Min() returned %d, %t want %d, %t", N, haveKey, ok, wantKey, wok)
 			}
 		}
 	})
@@ -131,16 +136,21 @@ func TestMax(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
 		for N := range 11 {
 			m := newMap()
-			permute(m, N)
-			have, ok := m.Max()
-			want := 2*N - 1
-			wok := true
+			_, slice := permute(m, N)
+			haveKey, haveVal, ok := m.Max()
+			wantKey := 2*N - 1
+			var wantVal int
+			var wok bool
 			if N == 0 {
-				want = 0
+				wantKey = 0
+				wantVal = 0
 				wok = false
+			} else {
+				wantVal = slice[wantKey]
+				wok = true
 			}
-			if have != want || ok != wok {
-				t.Errorf("N=%d Min() returned %d, %t want %d, %t", N, have, ok, want, wok)
+			if haveKey != wantKey || haveVal != wantVal || ok != wok {
+				t.Errorf("N=%d Max() returned %d, %t want %d, %t", N, haveKey, ok, wantKey, wok)
 			}
 		}
 	})
@@ -340,7 +350,7 @@ func TestDelete(t *testing.T) {
 				checkLen(m, wantLen)
 				slice[x] = 0
 				var have []int
-				for k, _ := range m.All() {
+				for k := range m.All() {
 					have = append(have, k)
 				}
 				want := nonzeroIndexes(slice)
@@ -401,7 +411,7 @@ func TestDeleteRange(t *testing.T) {
 			}
 			newRange(m, blo, bhi).Clear()
 			var have []int
-			for k, _ := range m.All() {
+			for k := range m.All() {
 				have = append(have, k)
 			}
 			want := keep(slice, func(k int) bool { return !in(k, blo, bhi) })
@@ -431,7 +441,7 @@ func TestAllDeleteRange(t *testing.T) {
 					m := newMap()
 					_, slice := permute(m, N)
 					var have []int
-					for k, _ := range m.All() {
+					for k := range m.All() {
 						deleteLo, deleteHi = clearRange(m, true, k, target, mode, slice)
 						have = append(have, k)
 					}
@@ -455,7 +465,7 @@ func TestBackwardDeleteRange(t *testing.T) {
 					_, slice := permute(m, N)
 					var have []int
 					var deleteLo, deleteHi int
-					for k, _ := range m.Backward() {
+					for k := range m.Backward() {
 						deleteLo, deleteHi = clearRange(m, false, k, target, mode, slice)
 						have = append(have, k)
 					}

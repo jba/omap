@@ -240,25 +240,27 @@ func _delete[K, V any](m omap[K, V], key K) bool {
 	return true
 }
 
-// Min returns the minimum key in m and true.
-// If m is empty, the second return value is false.
-func (m *Map[K, V]) Min() (K, bool) {
+// Min returns the minimum key in m, its value, and true.
+// If m is empty, the third return value is false.
+func (m *Map[K, V]) Min() (K, V, bool) {
 	return _min(m)
 }
 
-// Min returns the minimum key in m and true.
-// If m is empty, the second return value is false.
-func (m *MapFunc[K, v]) Min() (K, bool) {
+// Min returns the minimum key in m, its value, and true.
+// If m is empty, the third return value is false.
+func (m *MapFunc[K, V]) Min() (K, V, bool) {
 	return _min(m)
 }
 
-func _min[K, V any](m omap[K, V]) (K, bool) {
+func _min[K, V any](m omap[K, V]) (K, V, bool) {
 	x := *m.root()
 	if x == nil {
-		var z K
-		return z, false
+		var zk K
+		var zv V
+		return zk, zv, false
 	}
-	return x.minNode().key, true
+	n := x.minNode()
+	return n.key, n.val, true
 }
 
 // minNode returns the node in x's subtree with the smallest key.
@@ -270,25 +272,27 @@ func (x *node[K, V]) minNode() *node[K, V] {
 	return x
 }
 
-// Max returns the maximum key in m and true.
-// If m is empty, the second return value is false.
-func (m *Map[K, V]) Max() (K, bool) {
+// Max returns the maximum key in m, its value, and true.
+// If m is empty, the third return value is false.
+func (m *Map[K, V]) Max() (K, V, bool) {
 	return _max(m)
 }
 
-// Max returns the maximum key in m and true.
-// If m is empty, the second return value is false.
-func (m *MapFunc[K, v]) Max() (K, bool) {
+// Max returns the maximum key in m, is value, and true.
+// If m is empty, the third return value is false.
+func (m *MapFunc[K, V]) Max() (K, V, bool) {
 	return _max(m)
 }
 
-func _max[K, V any](m omap[K, V]) (K, bool) {
+func _max[K, V any](m omap[K, V]) (K, V, bool) {
 	x := *m.root()
 	if x == nil {
-		var z K
-		return z, false
+		var zk K
+		var zv V
+		return zk, zv, false
 	}
-	return x.maxNode().key, true
+	n := x.maxNode()
+	return n.key, n.val, true
 }
 
 // maxNode returns the node in x's subtree with the smallest key.
