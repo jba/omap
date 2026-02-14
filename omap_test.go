@@ -32,6 +32,8 @@ type Interface[K, V any] interface {
 	root() **node[K, V]
 }
 
+// a non-zero slice element v at index k corresponds
+// with a map entry k:v.
 func permute(m Interface[int, int], n int) (perm, slice []int) {
 	perm = rand.Perm(n)
 	slice = make([]int, 2*n+1)
@@ -47,6 +49,21 @@ func permute(m Interface[int, int], n int) (perm, slice []int) {
 	return perm, slice
 }
 
+func mstr(m Interface[int, int]) string {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	first := true
+	for k, v := range m.All() {
+		if !first {
+			buf.WriteString(", ")
+		}
+		first = false
+		fmt.Fprintf(&buf, "%d:%d", k, v)
+	}
+	buf.WriteByte('}')
+	return buf.String()
+}
+
 func dump(m Interface[int, int]) string {
 	var buf bytes.Buffer
 	var walk func(*node[int, int])
@@ -55,7 +72,7 @@ func dump(m Interface[int, int]) string {
 			fmt.Fprintf(&buf, "nil")
 			return
 		}
-		fmt.Fprintf(&buf, "(%d[%d] ", x.key, x._size)
+		fmt.Fprintf(&buf, "(%d[%d]=%d ", x.key, x._size, x.val)
 		walk(x.left)
 		fmt.Fprintf(&buf, " ")
 		walk(x.right)
@@ -192,7 +209,6 @@ func TestMaxRange(t *testing.T) {
 				have, ok := r.Max()
 				want := 0
 				wok := false
-				slices.Reverse(slice)
 				for k, v := range slice {
 					k = len(slice) - k - 1
 					if v != 0 && in(k, blo, bhi) {
@@ -651,6 +667,7 @@ func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K
 
 func inf() bound[int] { return bound[int]{} }
 
+// bounds returns a sequence of all pairs of bound[int] for numbers in [0, n).
 func bounds(n int) iter.Seq2[bound[int], bound[int]] {
 	return func(yield func(_, _ bound[int]) bool) {
 		for hi := range n {
