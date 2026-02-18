@@ -72,6 +72,7 @@ func BenchmarkDeleteInsert(b *testing.B) {
 		m.Set(insertP[i%benchmarkTreeSize], i)
 	}
 }
+
 func BenchmarkDelete(b *testing.B) {
 	b.StopTimer()
 	insertP := rand.Perm(benchmarkTreeSize)
@@ -108,6 +109,16 @@ func BenchmarkGet(b *testing.B) {
 			if i >= b.N {
 				return
 			}
+		}
+	}
+}
+
+func BenchmarkGetSame(b *testing.B) {
+	m := newMap(rand.Perm(benchmarkTreeSize))
+	seq := rand.Perm(benchmarkTreeSize)
+	for b.Loop() {
+		for _, item := range seq {
+			m.Get(item)
 		}
 	}
 }
