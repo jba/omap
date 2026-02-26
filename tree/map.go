@@ -928,6 +928,24 @@ func (r OrderedRange[K, V]) Index(key K) int { return rindex(r, key) }
 // Index returns the index of key within r, or -1 if key is not present or not in bounds.
 func (r Range[K, V]) Index(key K) int { return rindex(r, key) }
 
+// Len returns the number of keys in r.
+func (r OrderedRange[K, V]) Len() int { return rlen(r) }
+
+// Len returns the number of keys in r.
+func (r Range[K, V]) Len() int { return rlen(r) }
+
+func rlen[K, V any](r _range[K, V]) int {
+	min := minNode(r)
+	if min == nil {
+		return 0
+	}
+	max := maxNode(r)
+	if max == nil {
+		return 0
+	}
+	return max.rank() - min.rank() + 1
+}
+
 func rindex[K, V any](r _range[K, V], key K) int {
 	if !r.inLo(key) || !r.inHi(key) {
 		return -1

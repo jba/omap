@@ -674,6 +674,74 @@ func TestIndex(t *testing.T) {
 	})
 }
 
+func TestRangeLen(t *testing.T) {
+	t.Run("OrderedRange", func(t *testing.T) {
+		var m OrderedMap[int, int]
+		// Empty range on empty map
+		if got := m.From(1).To(10).Len(); got != 0 {
+			t.Errorf("empty map: got %d, want 0", got)
+		}
+
+		// Insert keys 2, 4, 6, 8, 10
+		for i := 1; i <= 5; i++ {
+			m.Insert(2*i, i)
+		}
+
+		// Full map
+		if got := m.From(0).To(100).Len(); got != 5 {
+			t.Errorf("full range: got %d, want 5", got)
+		}
+
+		// Range [4, 8] contains 4, 6, 8
+		if got := m.From(4).To(8).Len(); got != 3 {
+			t.Errorf("From(4).To(8): got %d, want 3", got)
+		}
+
+		// Range (4, 8) contains only 6
+		if got := m.Above(4).Below(8).Len(); got != 1 {
+			t.Errorf("Above(4).Below(8): got %d, want 1", got)
+		}
+
+		// Empty range
+		if got := m.From(100).To(200).Len(); got != 0 {
+			t.Errorf("empty range: got %d, want 0", got)
+		}
+	})
+
+	t.Run("Range", func(t *testing.T) {
+		m := NewMap[int, int](cmp.Compare)
+		// Empty range on empty map
+		if got := m.From(1).To(10).Len(); got != 0 {
+			t.Errorf("empty map: got %d, want 0", got)
+		}
+
+		// Insert keys 2, 4, 6, 8, 10
+		for i := 1; i <= 5; i++ {
+			m.Insert(2*i, i)
+		}
+
+		// Full map
+		if got := m.From(0).To(100).Len(); got != 5 {
+			t.Errorf("full range: got %d, want 5", got)
+		}
+
+		// Range [4, 8] contains 4, 6, 8
+		if got := m.From(4).To(8).Len(); got != 3 {
+			t.Errorf("From(4).To(8): got %d, want 3", got)
+		}
+
+		// Range (4, 8) contains only 6
+		if got := m.Above(4).Below(8).Len(); got != 1 {
+			t.Errorf("Above(4).Below(8): got %d, want 1", got)
+		}
+
+		// Empty range
+		if got := m.From(100).To(200).Len(); got != 0 {
+			t.Errorf("empty range: got %d, want 0", got)
+		}
+	})
+}
+
 func checkSize[K, V any](t *testing.T, m omap[K, V]) {
 	t.Helper()
 	chsz(t, *m.root())
