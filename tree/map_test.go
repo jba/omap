@@ -4,7 +4,7 @@
 
 //go:build go1.23
 
-package omap
+package tree
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ type Interface[K, V any] interface {
 	Backward() iter.Seq2[K, V]
 	Delete(key K) bool
 	Get(key K) (V, bool)
-	Set(key K, val V) (V, bool)
+	Insert(key K, val V) (V, bool)
 	Min() (K, V, bool)
 	Max() (K, V, bool)
 	Len() int
@@ -38,12 +38,12 @@ func permute(m Interface[int, int], n int) (perm, slice []int) {
 	perm = rand.Perm(n)
 	slice = make([]int, 2*n+1)
 	for i, x := range perm {
-		m.Set(2*x+1, i+1)
+		m.Insert(2*x+1, i+1)
 		slice[2*x+1] = i + 1
 	}
 	// Overwrite-Set half the entries.
 	for i, x := range perm[:len(perm)/2] {
-		m.Set(2*x+1, i+100)
+		m.Insert(2*x+1, i+100)
 		slice[2*x+1] = i + 100
 	}
 	return perm, slice
@@ -84,10 +84,10 @@ func dump(m Interface[int, int]) string {
 
 func test(t *testing.T, f func(*testing.T, func() Interface[int, int])) {
 	t.Run("Map", func(t *testing.T) {
-		f(t, func() Interface[int, int] { return new(Map[int, int]) })
+		f(t, func() Interface[int, int] { return new(OrderedMap[int, int]) })
 	})
 	t.Run("MapFunc", func(t *testing.T) {
-		f(t, func() Interface[int, int] { return NewMapFunc[int, int](cmp.Compare) })
+		f(t, func() Interface[int, int] { return NewMap[int, int](cmp.Compare) })
 	})
 }
 
@@ -118,10 +118,10 @@ func TestSet(t *testing.T) {
 		}
 
 		m := newMap()
-		check(m.Set(1, 10))(0, true)
-		check(m.Set(2, 20))(0, true)
-		check(m.Set(1, 5))(10, false)
-		check(m.Set(1, 8))(5, false)
+		check(m.Insert(1, 10))(0, true)
+		check(m.Insert(2, 20))(0, true)
+		check(m.Insert(1, 5))(10, false)
+		check(m.Insert(1, 8))(5, false)
 	})
 }
 
@@ -397,7 +397,7 @@ func TestClone(t *testing.T) {
 
 	t.Run("Map", func(t *testing.T) {
 		for N := range 11 {
-			m := &Map[int, int]{}
+			m := &OrderedMap[int, int]{}
 			permute(m, N)
 			if !equal(m, m.Clone()) {
 				t.Errorf("N=%d: not equal", N)
@@ -406,7 +406,7 @@ func TestClone(t *testing.T) {
 	})
 	t.Run("MapFunc", func(t *testing.T) {
 		for N := range 11 {
-			m := NewMapFunc[int, int](func(i1, i2 int) int { return cmp.Compare(i1, i2) })
+			m := NewMap[int, int](func(i1, i2 int) int { return cmp.Compare(i1, i2) })
 			permute(m, N)
 			if !equal(m, m.Clone()) {
 				t.Errorf("N=%d: not equal", N)
@@ -574,10 +574,10 @@ func chsz[K, V any](t *testing.T, x *node[K, V]) {
 
 func TestRangeCreation(t *testing.T) {
 	t.Run("Map", func(t *testing.T) {
-		m := &Map[int, int]{}
+		m := &OrderedMap[int, int]{}
 
 		for _, tc := range []struct {
-			r    Range[int, int]
+			r    OrderedRange[int, int]
 			want string
 		}{
 			{m.From(2), "[2, ∞)"},
@@ -597,9 +597,9 @@ func TestRangeCreation(t *testing.T) {
 	})
 
 	t.Run("MapFunc", func(t *testing.T) {
-		m := NewMapFunc[int, int](nil)
+		m := NewMap[int, int](nil)
 		for _, tc := range []struct {
-			r    RangeFunc[int, int]
+			r    Range[int, int]
 			want string
 		}{
 			{m.From(2), "[2, ∞)"},
@@ -656,10 +656,10 @@ func rdump[K, V any](ir iRange[K, V]) string {
 
 func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
 	switch m := m.(type) {
+	case *OrderedMap[K, V]:
+		return OrderedRange[K, V]{m: m, _lo: lo, _hi: hi}
 	case *Map[K, V]:
 		return Range[K, V]{m: m, _lo: lo, _hi: hi}
-	case *MapFunc[K, V]:
-		return RangeFunc[K, V]{m: m, _lo: lo, _hi: hi}
 	default:
 		panic("bad map type")
 	}
@@ -697,7 +697,7 @@ func bounds(n int) iter.Seq2[bound[int], bound[int]] {
 func TestBounds(t *testing.T) {
 	got := map[string]bool{}
 	for blo, bhi := range bounds(2) {
-		got[rdump(newRange(&Map[int, int]{}, blo, bhi))] = true
+		got[rdump(newRange(&OrderedMap[int, int]{}, blo, bhi))] = true
 	}
 	wants := []string{
 		"(0, 0)",

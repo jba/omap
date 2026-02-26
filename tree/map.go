@@ -5,10 +5,10 @@
 
 // TODO: rewrite deleteRange to avoid insertions.
 
-// Package omap implements in-memory ordered maps.
-// [Map][K, V] is suitable for ordered types K,
-// while [MapFunc][K, V] supports arbitrary keys and comparison functions.
-package omap
+// Package tree implements in-memory ordered maps.
+// [OrderedMap][K, V] is suitable for ordered types K,
+// while [Map][K, V] supports arbitrary keys and comparison functions.
+package tree
 
 // The implementation is a treap. See:
 // https://en.wikipedia.org/wiki/Treap
@@ -20,18 +20,18 @@ import (
 	"math/rand/v2"
 )
 
-// A Map is a map[K]V ordered according to K's standard Go ordering.
-// The zero value of a Map is an empty Map ready to use.
-type Map[K cmp.Ordered, V any] struct {
+// A OrderedMap is a map[K]V ordered according to K's standard Go ordering.
+// The zero value of a OrderedMap is an empty OrderedMap ready to use.
+type OrderedMap[K cmp.Ordered, V any] struct {
 	_root *node[K, V]
 	_gen  uint64
 }
 
-// A MapFunc is a map[K]V ordered according to an arbitrary comparison function.
-// The zero value of a MapFunc is not meaningful since it has no comparison function.
-// Use [NewMapFunc] to create a [MapFunc].
-// A nil *MapFunc, like a nil Go map, can be read but not written and contains no entries.
-type MapFunc[K, V any] struct {
+// A Map is a map[K]V ordered according to an arbitrary comparison function.
+// The zero value of a Map is not meaningful since it has no comparison function.
+// Use [NewMap] to create a [Map].
+// A nil *Map, like a nil Go map, can be read but not written and contains no entries.
+type Map[K, V any] struct {
 	_root *node[K, V]
 	cmp   func(K, K) int
 	_gen  uint64
@@ -48,9 +48,9 @@ type node[K any, V any] struct {
 	_size  int // number of keys in this node's subtree
 }
 
-// NewMapFunc returns a new MapFunc[K, V] ordered according to cmp.
-func NewMapFunc[K, V any](cmp func(K, K) int) *MapFunc[K, V] {
-	return &MapFunc[K, V]{cmp: cmp}
+// NewMap returns a new MapFunc[K, V] ordered according to cmp.
+func NewMap[K, V any](cmp func(K, K) int) *Map[K, V] {
+	return &Map[K, V]{cmp: cmp}
 }
 
 // omap is the interface implemented by both Map[K, V] and MapFunc[K, V]
@@ -77,27 +77,27 @@ type omap[K, V any] interface {
 	clear()
 }
 
-func (m *Map[K, V]) root() **node[K, V]     { return &m._root }
-func (m *MapFunc[K, V]) root() **node[K, V] { return &m._root }
+func (m *OrderedMap[K, V]) root() **node[K, V] { return &m._root }
+func (m *Map[K, V]) root() **node[K, V]        { return &m._root }
 
-func (m *Map[K, V]) gen() uint64     { return m._gen }
-func (m *MapFunc[K, V]) gen() uint64 { return m._gen }
+func (m *OrderedMap[K, V]) gen() uint64 { return m._gen }
+func (m *Map[K, V]) gen() uint64        { return m._gen }
 
-func (m *Map[K, V]) clear()     { m.Clear() }
-func (m *MapFunc[K, V]) clear() { m.Clear() }
+func (m *OrderedMap[K, V]) clear() { m.Clear() }
+func (m *Map[K, V]) clear()        { m.Clear() }
 
-func (m *Map[K, V]) get(k K) (V, bool)     { return m.Get(k) }
-func (m *MapFunc[K, V]) get(k K) (V, bool) { return m.Get(k) }
+func (m *OrderedMap[K, V]) get(k K) (V, bool) { return m.Get(k) }
+func (m *Map[K, V]) get(k K) (V, bool)        { return m.Get(k) }
 
-func (m *Map[K, V]) set(k K, v V)     { m.Set(k, v) }
-func (m *MapFunc[K, V]) set(k K, v V) { m.Set(k, v) }
+func (m *OrderedMap[K, V]) set(k K, v V) { m.Insert(k, v) }
+func (m *Map[K, V]) set(k K, v V)        { m.Insert(k, v) }
 
 // find looks up the key k in the map.
 // It returns the parent of k as well as the position where k would be attached.
 // *pos is non-nil if k is present, nil if k is missing.
 // parent is nil if there are no nodes in the map, or if there is only one node and
 // it's k.
-func (m *Map[K, V]) find(k K) (pos **node[K, V], parent *node[K, V]) {
+func (m *OrderedMap[K, V]) find(k K) (pos **node[K, V], parent *node[K, V]) {
 	pos = &m._root
 	for x := *pos; x != nil; x = *pos {
 		if x.key == k {
@@ -114,7 +114,7 @@ func (m *Map[K, V]) find(k K) (pos **node[K, V], parent *node[K, V]) {
 }
 
 // find is the same as for Map[K, V] but using m.cmp.
-func (m *MapFunc[K, V]) find(k K) (pos **node[K, V], parent *node[K, V]) {
+func (m *Map[K, V]) find(k K) (pos **node[K, V], parent *node[K, V]) {
 	pos = &m._root
 	for x := *pos; x != nil; x = *pos {
 		cmp := m.cmp(x.key, k)
@@ -132,12 +132,12 @@ func (m *MapFunc[K, V]) find(k K) (pos **node[K, V], parent *node[K, V]) {
 }
 
 // Get returns the value of m[key] and reports whether it exists.
-func (m *Map[K, V]) Get(key K) (V, bool) {
+func (m *OrderedMap[K, V]) Get(key K) (V, bool) {
 	return get(m, key)
 }
 
 // Get returns the value of m[key] and reports whether it exists.
-func (m *MapFunc[K, V]) Get(key K) (V, bool) {
+func (m *Map[K, V]) Get(key K) (V, bool) {
 	return get(m, key)
 }
 
@@ -150,17 +150,17 @@ func get[K, V any](m omap[K, V], key K) (V, bool) {
 	return zero, false
 }
 
-// Set sets m[key] = val.
-// If the entry was present, Set returns the former value and false.
+// Insert sets m[key] = val.
+// If the entry was present, Insert returns the former value and false.
 // Otherwise it returns the zero value and true.
-func (m *Map[K, V]) Set(key K, val V) (old V, added bool) {
+func (m *OrderedMap[K, V]) Insert(key K, val V) (old V, added bool) {
 	return set(m, key, val)
 }
 
-// Set sets m[key] = val.
-// If the entry was present, Set returns the former value and false.
+// Insert sets m[key] = val.
+// If the entry was present, Insert returns the former value and false.
 // Otherwise it returns the zero value and true.
-func (m *MapFunc[K, V]) Set(key K, val V) (old V, added bool) {
+func (m *Map[K, V]) Insert(key K, val V) (old V, added bool) {
 	return set(m, key, val)
 }
 
@@ -196,12 +196,12 @@ func rotateUp[K, V any](m omap[K, V], x *node[K, V]) {
 }
 
 // Delete deletes m[key] if it exists.
-func (m *Map[K, V]) Delete(key K) bool {
+func (m *OrderedMap[K, V]) Delete(key K) bool {
 	return _delete(m, key)
 }
 
 // Delete deletes m[key] if it exists.
-func (m *MapFunc[K, V]) Delete(key K) bool {
+func (m *Map[K, V]) Delete(key K) bool {
 	return _delete(m, key)
 }
 
@@ -242,13 +242,13 @@ func _delete[K, V any](m omap[K, V], key K) bool {
 
 // Min returns the minimum key in m, its value, and true.
 // If m is empty, the third return value is false.
-func (m *Map[K, V]) Min() (K, V, bool) {
+func (m *OrderedMap[K, V]) Min() (K, V, bool) {
 	return _min(m)
 }
 
 // Min returns the minimum key in m, its value, and true.
 // If m is empty, the third return value is false.
-func (m *MapFunc[K, V]) Min() (K, V, bool) {
+func (m *Map[K, V]) Min() (K, V, bool) {
 	return _min(m)
 }
 
@@ -274,13 +274,13 @@ func (x *node[K, V]) minNode() *node[K, V] {
 
 // Max returns the maximum key in m, its value, and true.
 // If m is empty, the third return value is false.
-func (m *Map[K, V]) Max() (K, V, bool) {
+func (m *OrderedMap[K, V]) Max() (K, V, bool) {
 	return _max(m)
 }
 
 // Max returns the maximum key in m, is value, and true.
 // If m is empty, the third return value is false.
-func (m *MapFunc[K, V]) Max() (K, V, bool) {
+func (m *Map[K, V]) Max() (K, V, bool) {
 	return _max(m)
 }
 
@@ -404,13 +404,13 @@ func splitExclusive[K, V any](m omap[K, V], key K) (after *node[K, V]) {
 //
 // Another example: if the map contains keys 10, 20 and 30, the iterator has yielded
 // 10, and then 20 is deleted, then the next yielded key will be 30.
-func (m *Map[K, V]) All() iter.Seq2[K, V] {
+func (m *OrderedMap[K, V]) All() iter.Seq2[K, V] {
 	return all(m)
 }
 
 // All returns an iterator over the map m from smallest to largest key.
-// See [Map.All] for the guarantee provided if m is modified during the iteration.
-func (m *MapFunc[K, V]) All() iter.Seq2[K, V] {
+// See [OrderedMap.All] for the guarantee provided if m is modified during the iteration.
+func (m *Map[K, V]) All() iter.Seq2[K, V] {
 	return all(m)
 }
 
@@ -430,14 +430,14 @@ func all[K, V any](m omap[K, V]) iter.Seq2[K, V] {
 }
 
 // Backward returns an iterator over the map m from largest to smallest key.
-// See [Map.All] for the guarantee provided if m is modified during the iteration.
-func (m *Map[K, V]) Backward() iter.Seq2[K, V] {
+// See [OrderedMap.All] for the guarantee provided if m is modified during the iteration.
+func (m *OrderedMap[K, V]) Backward() iter.Seq2[K, V] {
 	return backward(m)
 }
 
 // Backward returns an iterator over the map m from largest to smallest key.
-// See [Map.All] for the guarantee provided if m is modified during the iteration.
-func (m *MapFunc[K, V]) Backward() iter.Seq2[K, V] {
+// See [OrderedMap.All] for the guarantee provided if m is modified during the iteration.
+func (m *Map[K, V]) Backward() iter.Seq2[K, V] {
 	return backward(m)
 }
 
@@ -615,25 +615,25 @@ func rotateRight[K, V any](m omap[K, V], y *node[K, V]) {
 }
 
 // Clear deletes m[k] for all keys in m.
-func (m *Map[K, V]) Clear() {
+func (m *OrderedMap[K, V]) Clear() {
 	m._root = nil
 	m._gen++
 }
 
 // Clear deletes m[k] for all keys in m.
-func (m *MapFunc[K, V]) Clear() {
+func (m *Map[K, V]) Clear() {
 	m._root = nil
 	m._gen++
 }
 
 // Clone returns a shallow copy of m.
-func (m *Map[K, V]) Clone() *Map[K, V] {
-	return &Map[K, V]{_root: m._root.clone(nil)}
+func (m *OrderedMap[K, V]) Clone() *OrderedMap[K, V] {
+	return &OrderedMap[K, V]{_root: m._root.clone(nil)}
 }
 
 // Clone returns a shallow copy of m.
-func (m *MapFunc[K, V]) Clone() *MapFunc[K, V] {
-	m2 := NewMapFunc[K, V](m.cmp)
+func (m *Map[K, V]) Clone() *Map[K, V] {
+	m2 := NewMap[K, V](m.cmp)
 	m2._root = m._root.clone(nil)
 	return m2
 }
@@ -651,18 +651,18 @@ func (x *node[K, V]) clone(parent *node[K, V]) *node[K, V] {
 }
 
 // Len returns the number of keys in m.
-func (m *Map[K, V]) Len() int { return m._root.size() }
+func (m *OrderedMap[K, V]) Len() int { return m._root.size() }
 
 // Len returns the number of keys in m.
-func (m *MapFunc[K, V]) Len() int { return m._root.size() }
+func (m *Map[K, V]) Len() int { return m._root.size() }
+
+// At returns the key and value at index i.
+// It panics if i < 0 or i >= m.Len().
+func (m *OrderedMap[K, V]) At(i int) (K, V) { return m._root.at(i) }
 
 // At returns the key and value at index i.
 // It panics if i < 0 or i >= m.Len().
 func (m *Map[K, V]) At(i int) (K, V) { return m._root.at(i) }
-
-// At returns the key and value at index i.
-// It panics if i < 0 or i >= m.Len().
-func (m *MapFunc[K, V]) At(i int) (K, V) { return m._root.at(i) }
 
 func (x *node[K, V]) at(i int) (K, V) {
 	if x == nil {
@@ -678,39 +678,47 @@ func (x *node[K, V]) at(i int) (K, V) {
 	return x.right.at(i - lsz - 1)
 }
 
-// From returns a Range with lower bound lo, inclusive, and no upper bound.
+// From returns an OrderedRange with lower bound lo, inclusive, and no upper bound.
+func (m *OrderedMap[K, V]) From(lo K) OrderedRange[K, V] {
+	return OrderedRange[K, V]{m: m, _lo: including(lo)}
+}
+
+// Above returns an OrderedRange with lower bound lo, exclusive, and no upper bound.
+func (m *OrderedMap[K, V]) Above(lo K) OrderedRange[K, V] {
+	return OrderedRange[K, V]{m: m, _lo: excluding(lo)}
+}
+
+// To returns an OrderedRange with upper bound hi, inclusive, and no lower bound.
+func (m *OrderedMap[K, V]) To(hi K) OrderedRange[K, V] {
+	return OrderedRange[K, V]{m: m, _hi: including(hi)}
+}
+
+// Below returns an OrderedRange with upper bound hi, exclusive, and no lower bound.
+func (m *OrderedMap[K, V]) Below(hi K) OrderedRange[K, V] {
+	return OrderedRange[K, V]{m: m, _hi: excluding(hi)}
+}
+
+// From returns an Range with lower bound lo, inclusive, and no upper bound.
 func (m *Map[K, V]) From(lo K) Range[K, V] { return Range[K, V]{m: m, _lo: including(lo)} }
 
-// Above returns a Range with lower bound lo, exclusive, and no upper bound.
+// Above returns an Range with lower bound lo, exclusive, and no upper bound.
 func (m *Map[K, V]) Above(lo K) Range[K, V] { return Range[K, V]{m: m, _lo: excluding(lo)} }
 
-// To returns a Range with upper bound hi, inclusive, and no lower bound.
+// To returns an Range with upper bound hi, inclusive, and no lower bound.
 func (m *Map[K, V]) To(hi K) Range[K, V] { return Range[K, V]{m: m, _hi: including(hi)} }
 
-// Below returns a Range with upper bound hi, exclusive, and no lower bound.
+// Below returns an Range with upper bound hi, exclusive, and no lower bound.
 func (m *Map[K, V]) Below(hi K) Range[K, V] { return Range[K, V]{m: m, _hi: excluding(hi)} }
 
-// From returns a Range with lower bound lo, inclusive, and no upper bound.
-func (m *MapFunc[K, V]) From(lo K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _lo: including(lo)} }
-
-// Above returns a Range with lower bound lo, exclusive, and no upper bound.
-func (m *MapFunc[K, V]) Above(lo K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _lo: excluding(lo)} }
-
-// To returns a Range with upper bound hi, inclusive, and no lower bound.
-func (m *MapFunc[K, V]) To(hi K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _hi: including(hi)} }
-
-// Below returns a Range with upper bound hi, exclusive, and no lower bound.
-func (m *MapFunc[K, V]) Below(hi K) RangeFunc[K, V] { return RangeFunc[K, V]{m: m, _hi: excluding(hi)} }
-
-// A Range is a subsequence of keys in a [Map].
-type Range[K cmp.Ordered, V any] struct {
-	m        *Map[K, V]
+// A OrderedRange is a subsequence of keys in a [OrderedMap].
+type OrderedRange[K cmp.Ordered, V any] struct {
+	m        *OrderedMap[K, V]
 	_lo, _hi bound[K]
 }
 
-// A RangeFunc is a subsequence of keys in a [MapFunc].
-type RangeFunc[K, V any] struct {
-	m        *MapFunc[K, V]
+// A Range is a subsequence of keys in a [Map].
+type Range[K, V any] struct {
+	m        *Map[K, V]
 	_lo, _hi bound[K]
 }
 
@@ -736,16 +744,16 @@ func excluding[K any](k K) bound[K] {
 	return bound[K]{k, true, false}
 }
 
-func (r Range[K, V]) omap() omap[K, V]     { return r.m }
-func (r RangeFunc[K, V]) omap() omap[K, V] { return r.m }
+func (r OrderedRange[K, V]) omap() omap[K, V] { return r.m }
+func (r Range[K, V]) omap() omap[K, V]        { return r.m }
 
-func (r Range[K, V]) lo() bound[K]     { return r._lo }
-func (r RangeFunc[K, V]) lo() bound[K] { return r._lo }
+func (r OrderedRange[K, V]) lo() bound[K] { return r._lo }
+func (r Range[K, V]) lo() bound[K]        { return r._lo }
 
-func (r Range[K, V]) hi() bound[K]     { return r._hi }
-func (r RangeFunc[K, V]) hi() bound[K] { return r._hi }
+func (r OrderedRange[K, V]) hi() bound[K] { return r._hi }
+func (r Range[K, V]) hi() bound[K]        { return r._hi }
 
-func (r Range[K, V]) inHi(k K) bool {
+func (r OrderedRange[K, V]) inHi(k K) bool {
 	if !r._hi.present {
 		return true
 	}
@@ -755,7 +763,7 @@ func (r Range[K, V]) inHi(k K) bool {
 	return k < r._hi.key
 }
 
-func (r Range[K, V]) inLo(k K) bool {
+func (r OrderedRange[K, V]) inLo(k K) bool {
 	if !r._lo.present {
 		return true
 	}
@@ -765,7 +773,7 @@ func (r Range[K, V]) inLo(k K) bool {
 	return k > r._lo.key
 }
 
-func (r RangeFunc[K, V]) inHi(k K) bool {
+func (r Range[K, V]) inHi(k K) bool {
 	if !r._hi.present {
 		return true
 	}
@@ -775,7 +783,7 @@ func (r RangeFunc[K, V]) inHi(k K) bool {
 	return r.m.cmp(k, r._hi.key) < 0
 }
 
-func (r RangeFunc[K, V]) inLo(k K) bool {
+func (r Range[K, V]) inLo(k K) bool {
 	if !r._lo.present {
 		return true
 	}
@@ -785,9 +793,9 @@ func (r RangeFunc[K, V]) inLo(k K) bool {
 	return r.m.cmp(k, r._lo.key) > 0
 }
 
-// To returns a Range with upper bound hi, inclusive and the same lower bound as r.
+// To returns an OrderedRange with upper bound hi, inclusive and the same lower bound as r.
 // It panics if r already has an upper bound.
-func (r Range[K, V]) To(hi K) Range[K, V] {
+func (r OrderedRange[K, V]) To(hi K) OrderedRange[K, V] {
 	if r._hi.present {
 		panic("range already has an upper bound")
 	}
@@ -795,9 +803,9 @@ func (r Range[K, V]) To(hi K) Range[K, V] {
 	return r
 }
 
-// Below returns a Range with upper bound hi, exclusive and the same lower bound as r.
+// Below returns an OrderedRange with upper bound hi, exclusive and the same lower bound as r.
 // It panics if r already has an upper bound.
-func (r Range[K, V]) Below(hi K) Range[K, V] {
+func (r OrderedRange[K, V]) Below(hi K) OrderedRange[K, V] {
 	if r._hi.present {
 		panic("range already has an upper bound")
 	}
@@ -808,7 +816,7 @@ func (r Range[K, V]) Below(hi K) Range[K, V] {
 // To returns a RangeFunc with upper bound hi, inclusive and the same lower bound
 // as r.
 // It panics if r already has an upper bound.
-func (r RangeFunc[K, V]) To(hi K) RangeFunc[K, V] {
+func (r Range[K, V]) To(hi K) Range[K, V] {
 	if r._hi.present {
 		panic("range already has an upper bound")
 	}
@@ -819,7 +827,7 @@ func (r RangeFunc[K, V]) To(hi K) RangeFunc[K, V] {
 // Below returns a RangeFunc with upper bound hi, exclusive and the same lower bound
 // as r.
 // It panics if r already has an upper bound.
-func (r RangeFunc[K, V]) Below(hi K) RangeFunc[K, V] {
+func (r Range[K, V]) Below(hi K) Range[K, V] {
 	if r._hi.present {
 		panic("range already has an upper bound")
 	}
@@ -829,11 +837,11 @@ func (r RangeFunc[K, V]) Below(hi K) RangeFunc[K, V] {
 
 // Min returns the minimum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
-func (r Range[K, V]) Min() (K, bool) { return rmin(r) }
+func (r OrderedRange[K, V]) Min() (K, bool) { return rmin(r) }
 
 // Min returns the minimum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
-func (r RangeFunc[K, V]) Min() (K, bool) { return rmin(r) }
+func (r Range[K, V]) Min() (K, bool) { return rmin(r) }
 
 func rmin[K, V any](r _range[K, V]) (K, bool) {
 	var z K
@@ -869,11 +877,11 @@ func minNode[K, V any](r _range[K, V]) *node[K, V] {
 
 // Max returns the maximum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
-func (r Range[K, V]) Max() (K, bool) { return rmax(r) }
+func (r OrderedRange[K, V]) Max() (K, bool) { return rmax(r) }
 
 // Max returns the maximum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
-func (r RangeFunc[K, V]) Max() (K, bool) { return rmax(r) }
+func (r Range[K, V]) Max() (K, bool) { return rmax(r) }
 
 func rmax[K, V any](r _range[K, V]) (K, bool) {
 	var z K
@@ -908,24 +916,24 @@ func maxNode[K, V any](r _range[K, V]) *node[K, V] {
 }
 
 // Clear deletes all the entries in r from r's underlying map.
-func (r Range[K, V]) Clear() {
+func (r OrderedRange[K, V]) Clear() {
 	deleteRange(r.m, r.lo(), r.hi())
 	r.m._gen++
 }
 
 // Clear deletes all the entries in r from r's underlying map.
-func (r RangeFunc[K, V]) Clear() {
+func (r Range[K, V]) Clear() {
 	deleteRange(r.m, r.lo(), r.hi())
 	r.m._gen++
 }
 
 // All returns an iterator over r's underlying map from smallest to largest key in r.
-// See [Map.All] for the guarantee provided if m is modified during the iteration.
-func (r Range[K, V]) All() iter.Seq2[K, V] { return rall(r) }
+// See [OrderedMap.All] for the guarantee provided if m is modified during the iteration.
+func (r OrderedRange[K, V]) All() iter.Seq2[K, V] { return rall(r) }
 
 // All returns an iterator over r's underlying map from smallest to largest key in r.
-// See [Map.All] for the guarantee provided if m is modified during the iteration.
-func (r RangeFunc[K, V]) All() iter.Seq2[K, V] { return rall(r) }
+// See [OrderedMap.All] for the guarantee provided if m is modified during the iteration.
+func (r Range[K, V]) All() iter.Seq2[K, V] { return rall(r) }
 
 func rall[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
@@ -952,12 +960,12 @@ func rall[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 }
 
 // Backward returns an iterator over r's underlying map from largest to smallest key in r.
-// See [Map.All] for the guarantee provided if m is modified during the iteration.
-func (r Range[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
+// See [OrderedMap.All] for the guarantee provided if m is modified during the iteration.
+func (r OrderedRange[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
 
 // Backward returns an iterator over r's underlying map from largest to smallest key in r.
-// See [Map.All] for the guarantee provided if m is modified during the iteration.
-func (r RangeFunc[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
+// See [OrderedMap.All] for the guarantee provided if m is modified during the iteration.
+func (r Range[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
 
 func rbackward[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {

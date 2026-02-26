@@ -5,7 +5,7 @@
 
 // These benchmarks are based on the ones in github.com/google/btree.
 
-package omap
+package tree
 
 import (
 	"math/rand/v2"
@@ -21,9 +21,9 @@ func BenchmarkInsert(b *testing.B) {
 	b.StartTimer()
 	i := 0
 	for i < b.N {
-		var m Map[int, int]
+		var m OrderedMap[int, int]
 		for _, item := range insertP {
-			m.Set(item, item)
+			m.Insert(item, item)
 			i++
 			if i >= b.N {
 				return
@@ -32,19 +32,19 @@ func BenchmarkInsert(b *testing.B) {
 	}
 }
 
-func randMap(size int) (*Map[int, int], []int) {
+func randMap(size int) (*OrderedMap[int, int], []int) {
 	insertP := rand.Perm(size)
-	var m Map[int, int]
+	var m OrderedMap[int, int]
 	for _, item := range insertP {
-		m.Set(item, item)
+		m.Insert(item, item)
 	}
 	return &m, insertP
 }
 
-func newMap(els []int) *Map[int, int] {
-	var m Map[int, int]
+func newMap(els []int) *OrderedMap[int, int] {
+	var m OrderedMap[int, int]
 	for _, item := range els {
-		m.Set(item, item)
+		m.Insert(item, item)
 	}
 	return &m
 }
@@ -69,7 +69,7 @@ func BenchmarkDeleteInsert(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		m.Delete(insertP[i%benchmarkTreeSize])
-		m.Set(insertP[i%benchmarkTreeSize], i)
+		m.Insert(insertP[i%benchmarkTreeSize], i)
 	}
 }
 
