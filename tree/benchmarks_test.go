@@ -56,7 +56,7 @@ func BenchmarkSeek(b *testing.B) {
 	m, _ := randMap(size)
 	b.StartTimer()
 
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		for range m.From(i % size).All() {
 			break
 		}
@@ -67,7 +67,7 @@ func BenchmarkDeleteInsert(b *testing.B) {
 	b.StopTimer()
 	m, insertP := randMap(benchmarkTreeSize)
 	b.StartTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		m.Delete(insertP[i%benchmarkTreeSize])
 		m.Insert(insertP[i%benchmarkTreeSize], i)
 	}
@@ -128,7 +128,7 @@ func BenchmarkAscend(b *testing.B) {
 	m := newMap(arr)
 	sort.Ints(arr)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		j := 0
 		for k := range m.All() {
 			if k != arr[j] {

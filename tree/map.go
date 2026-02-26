@@ -544,6 +544,21 @@ func (x *node[K, V]) size() int {
 	return x._size
 }
 
+// rank returns the position of x in its tree, counting from zero.
+// x must not be nil.
+func (x *node[K, V]) rank() int {
+	if x == nil {
+		panic("nil node")
+	}
+	r := x.left.size()
+	for p := x.parent; p != nil; x, p = p, p.parent {
+		if x == p.right {
+			r += 1 + p.left.size()
+		}
+	}
+	return r
+}
+
 func (x *node[K, V]) redoSize() {
 	x._size = 1 + x.left.size() + x.right.size()
 }
@@ -663,6 +678,30 @@ func (m *OrderedMap[K, V]) Nth(i int) (K, V) { return m._root.nth(i) }
 // Nth returns the key and value at index i.
 // It panics if i < 0 or i >= m.Len().
 func (m *Map[K, V]) Nth(i int) (K, V) { return m._root.nth(i) }
+
+// Index returns the index of key in m, or -1 if key is not present.
+func (m *OrderedMap[K, V]) Index(key K) int {
+	if m._root == nil {
+		return -1
+	}
+	pos, _ := m.find(key)
+	if *pos == nil {
+		return -1
+	}
+	return (*pos).rank()
+}
+
+// Index returns the index of key in m, or -1 if key is not present.
+func (m *Map[K, V]) Index(key K) int {
+	if m._root == nil {
+		return -1
+	}
+	pos, _ := m.find(key)
+	if *pos == nil {
+		return -1
+	}
+	return (*pos).rank()
+}
 
 func (x *node[K, V]) nth(i int) (K, V) {
 	if x == nil {
@@ -882,6 +921,27 @@ func (r OrderedRange[K, V]) Max() (K, bool) { return rmax(r) }
 // Max returns the maximum key from r's underlying map that is in r and true.
 // If m is empty, the second return value is false.
 func (r Range[K, V]) Max() (K, bool) { return rmax(r) }
+
+// Index returns the index of key within r, or -1 if key is not present or not in bounds.
+func (r OrderedRange[K, V]) Index(key K) int { return rindex(r, key) }
+
+// Index returns the index of key within r, or -1 if key is not present or not in bounds.
+func (r Range[K, V]) Index(key K) int { return rindex(r, key) }
+
+func rindex[K, V any](r _range[K, V], key K) int {
+	if !r.inLo(key) || !r.inHi(key) {
+		return -1
+	}
+	pos, _ := r.omap().find(key)
+	if *pos == nil {
+		return -1
+	}
+	min := minNode(r)
+	if min == nil {
+		return -1
+	}
+	return (*pos).rank() - min.rank()
+}
 
 func rmax[K, V any](r _range[K, V]) (K, bool) {
 	var z K
