@@ -958,6 +958,40 @@ func rlen[K, V any](r _range[K, V]) int {
 	return max.rank() - min.rank() + 1
 }
 
+// Nth returns the key and value at index i within r.
+// It panics if i < 0 or i >= r.Len().
+func (r OrderedRange[K, V]) Nth(i int) (K, V) { return rnth(r, i) }
+
+// Nth returns the key and value at index i within r.
+// It panics if i < 0 or i >= r.Len().
+func (r Range[K, V]) Nth(i int) (K, V) { return rnth(r, i) }
+
+func rnth[K, V any](r _range[K, V], i int) (K, V) {
+	min := minNode(r)
+	if min == nil {
+		panic("index out of range")
+	}
+	return (*r.omap().root()).nth(min.rank() + i)
+}
+
+// Clone returns a new OrderedMap containing only the keys in r.
+func (r OrderedRange[K, V]) Clone() *OrderedMap[K, V] {
+	m := &OrderedMap[K, V]{}
+	for k, v := range r.All() {
+		m.Insert(k, v)
+	}
+	return m
+}
+
+// Clone returns a new Map containing only the keys in r.
+func (r Range[K, V]) Clone() *Map[K, V] {
+	m := NewMap[K, V](r.m.cmp)
+	for k, v := range r.All() {
+		m.Insert(k, v)
+	}
+	return m
+}
+
 func rindex[K, V any](r _range[K, V], key K) int {
 	if !r.inLo(key) || !r.inHi(key) {
 		return -1

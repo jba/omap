@@ -786,6 +786,102 @@ func TestRangeLen(t *testing.T) {
 	})
 }
 
+func TestRangeNth(t *testing.T) {
+	t.Run("OrderedRange", func(t *testing.T) {
+		var m OrderedMap[int, int]
+		// Insert keys 2, 4, 6, 8, 10 with values 1, 2, 3, 4, 5
+		for i := 1; i <= 5; i++ {
+			m.Insert(2*i, i)
+		}
+
+		// Range [4, 8] contains 4, 6, 8
+		r := m.From(4).To(8)
+		for i, wantKey := range []int{4, 6, 8} {
+			k, v := r.Nth(i)
+			if k != wantKey {
+				t.Errorf("Nth(%d) key: got %d, want %d", i, k, wantKey)
+			}
+			if v != wantKey/2 {
+				t.Errorf("Nth(%d) value: got %d, want %d", i, v, wantKey/2)
+			}
+		}
+	})
+
+	t.Run("Range", func(t *testing.T) {
+		m := NewMap[int, int](cmp.Compare)
+		// Insert keys 2, 4, 6, 8, 10 with values 1, 2, 3, 4, 5
+		for i := 1; i <= 5; i++ {
+			m.Insert(2*i, i)
+		}
+
+		// Range [4, 8] contains 4, 6, 8
+		r := m.From(4).To(8)
+		for i, wantKey := range []int{4, 6, 8} {
+			k, v := r.Nth(i)
+			if k != wantKey {
+				t.Errorf("Nth(%d) key: got %d, want %d", i, k, wantKey)
+			}
+			if v != wantKey/2 {
+				t.Errorf("Nth(%d) value: got %d, want %d", i, v, wantKey/2)
+			}
+		}
+	})
+}
+
+func TestRangeClone(t *testing.T) {
+	t.Run("OrderedRange", func(t *testing.T) {
+		var m OrderedMap[int, int]
+		// Insert keys 2, 4, 6, 8, 10 with values 1, 2, 3, 4, 5
+		for i := 1; i <= 5; i++ {
+			m.Insert(2*i, i)
+		}
+
+		// Clone range [4, 8]
+		clone := m.From(4).To(8).Clone()
+		if clone.Len() != 3 {
+			t.Errorf("Len: got %d, want 3", clone.Len())
+		}
+		for i, key := range []int{4, 6, 8} {
+			k, v := clone.Nth(i)
+			if k != key || v != key/2 {
+				t.Errorf("Nth(%d): got (%d, %d), want (%d, %d)", i, k, v, key, key/2)
+			}
+		}
+
+		// Verify clone is independent
+		clone.Insert(5, 99)
+		if m.Len() != 5 {
+			t.Errorf("original modified: Len = %d, want 5", m.Len())
+		}
+	})
+
+	t.Run("Range", func(t *testing.T) {
+		m := NewMap[int, int](cmp.Compare)
+		// Insert keys 2, 4, 6, 8, 10 with values 1, 2, 3, 4, 5
+		for i := 1; i <= 5; i++ {
+			m.Insert(2*i, i)
+		}
+
+		// Clone range [4, 8]
+		clone := m.From(4).To(8).Clone()
+		if clone.Len() != 3 {
+			t.Errorf("Len: got %d, want 3", clone.Len())
+		}
+		for i, key := range []int{4, 6, 8} {
+			k, v := clone.Nth(i)
+			if k != key || v != key/2 {
+				t.Errorf("Nth(%d): got (%d, %d), want (%d, %d)", i, k, v, key, key/2)
+			}
+		}
+
+		// Verify clone is independent
+		clone.Insert(5, 99)
+		if m.Len() != 5 {
+			t.Errorf("original modified: Len = %d, want 5", m.Len())
+		}
+	})
+}
+
 func checkSize[K, V any](t *testing.T, m omap[K, V]) {
 	t.Helper()
 	chsz(t, *m.root())
