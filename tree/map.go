@@ -656,15 +656,15 @@ func (m *OrderedMap[K, V]) Len() int { return m._root.size() }
 // Len returns the number of keys in m.
 func (m *Map[K, V]) Len() int { return m._root.size() }
 
-// At returns the key and value at index i.
+// Nth returns the key and value at index i.
 // It panics if i < 0 or i >= m.Len().
-func (m *OrderedMap[K, V]) At(i int) (K, V) { return m._root.at(i) }
+func (m *OrderedMap[K, V]) Nth(i int) (K, V) { return m._root.nth(i) }
 
-// At returns the key and value at index i.
+// Nth returns the key and value at index i.
 // It panics if i < 0 or i >= m.Len().
-func (m *Map[K, V]) At(i int) (K, V) { return m._root.at(i) }
+func (m *Map[K, V]) Nth(i int) (K, V) { return m._root.nth(i) }
 
-func (x *node[K, V]) at(i int) (K, V) {
+func (x *node[K, V]) nth(i int) (K, V) {
 	if x == nil {
 		panic("index out of range")
 	}
@@ -673,9 +673,9 @@ func (x *node[K, V]) at(i int) (K, V) {
 		return x.key, x.val
 	}
 	if i < lsz {
-		return x.left.at(i)
+		return x.left.nth(i)
 	}
-	return x.right.at(i - lsz - 1)
+	return x.right.nth(i - lsz - 1)
 }
 
 // From returns an OrderedRange with lower bound lo, inclusive, and no upper bound.

@@ -28,7 +28,8 @@ type Interface[K, V any] interface {
 	Min() (K, V, bool)
 	Max() (K, V, bool)
 	Len() int
-	At(int) (K, V)
+	Nth(int) (K, V)
+
 	root() **node[K, V]
 }
 
@@ -534,7 +535,7 @@ func TestAt(t *testing.T) {
 			_, slice := permute(m, N)
 			var haveKeys, haveVals []int
 			for i := 0; i < N; i++ {
-				k, v := m.At(i)
+				k, v := m.Nth(i)
 				haveKeys = append(haveKeys, k)
 				haveVals = append(haveVals, v)
 			}
