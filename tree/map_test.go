@@ -107,6 +107,50 @@ func TestGet(t *testing.T) {
 	})
 }
 
+func TestAt(t *testing.T) {
+	t.Run("OrderedMap", func(t *testing.T) {
+		var m OrderedMap[int, int]
+		// Missing key returns zero
+		if got := m.At(1); got != 0 {
+			t.Errorf("At(1) on empty map: got %d, want 0", got)
+		}
+		m.Insert(1, 10)
+		m.Insert(2, 20)
+		// Existing key returns value
+		if got := m.At(1); got != 10 {
+			t.Errorf("At(1): got %d, want 10", got)
+		}
+		if got := m.At(2); got != 20 {
+			t.Errorf("At(2): got %d, want 20", got)
+		}
+		// Missing key returns zero
+		if got := m.At(3); got != 0 {
+			t.Errorf("At(3): got %d, want 0", got)
+		}
+	})
+
+	t.Run("Map", func(t *testing.T) {
+		m := NewMap[int, int](cmp.Compare)
+		// Missing key returns zero
+		if got := m.At(1); got != 0 {
+			t.Errorf("At(1) on empty map: got %d, want 0", got)
+		}
+		m.Insert(1, 10)
+		m.Insert(2, 20)
+		// Existing key returns value
+		if got := m.At(1); got != 10 {
+			t.Errorf("At(1): got %d, want 10", got)
+		}
+		if got := m.At(2); got != 20 {
+			t.Errorf("At(2): got %d, want 20", got)
+		}
+		// Missing key returns zero
+		if got := m.At(3); got != 0 {
+			t.Errorf("At(3): got %d, want 0", got)
+		}
+	})
+}
+
 func TestSet(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
 		check := func(gotOld int, gotAdded bool) func(int, bool) {
@@ -528,7 +572,7 @@ func clearRange(m Interface[int, int], forwards bool, k, target int, mode string
 	return deleteLo, deleteHi
 }
 
-func TestAt(t *testing.T) {
+func TestNth(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
 		for N := range 11 {
 			m := newMap()

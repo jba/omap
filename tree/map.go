@@ -150,6 +150,18 @@ func get[K, V any](m omap[K, V], key K) (V, bool) {
 	return zero, false
 }
 
+// At returns the value of m[key], or the zero value if key is not present.
+func (m *OrderedMap[K, V]) At(key K) V {
+	v, _ := get(m, key)
+	return v
+}
+
+// At returns the value of m[key], or the zero value if key is not present.
+func (m *Map[K, V]) At(key K) V {
+	v, _ := get(m, key)
+	return v
+}
+
 // Insert sets m[key] = val.
 // If the entry was present, Insert returns the former value and false.
 // Otherwise it returns the zero value and true.
