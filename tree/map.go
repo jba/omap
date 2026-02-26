@@ -864,7 +864,7 @@ func (r OrderedRange[K, V]) Below(hi K) OrderedRange[K, V] {
 	return r
 }
 
-// To returns a RangeFunc with upper bound hi, inclusive and the same lower bound
+// To returns a Range with upper bound hi, inclusive and the same lower bound
 // as r.
 // It panics if r already has an upper bound.
 func (r Range[K, V]) To(hi K) Range[K, V] {
@@ -875,7 +875,7 @@ func (r Range[K, V]) To(hi K) Range[K, V] {
 	return r
 }
 
-// Below returns a RangeFunc with upper bound hi, exclusive and the same lower bound
+// Below returns a Range with upper bound hi, exclusive and the same lower bound
 // as r.
 // It panics if r already has an upper bound.
 func (r Range[K, V]) Below(hi K) Range[K, V] {
