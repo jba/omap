@@ -886,20 +886,21 @@ func (r Range[K, V]) Below(hi K) Range[K, V] {
 	return r
 }
 
-// Min returns the minimum key from r's underlying map that is in r and true.
-// If m is empty, the second return value is false.
-func (r OrderedRange[K, V]) Min() (K, bool) { return rmin(r) }
+// Min returns the minimum key from r's underlying map that is in r, its value, and true.
+// If m is empty, the third return value is false.
+func (r OrderedRange[K, V]) Min() (K, V, bool) { return rmin(r) }
 
-// Min returns the minimum key from r's underlying map that is in r and true.
-// If m is empty, the second return value is false.
-func (r Range[K, V]) Min() (K, bool) { return rmin(r) }
+// Min returns the minimum key from r's underlying map that is in r, its value, and true.
+// If m is empty, the third return value is false.
+func (r Range[K, V]) Min() (K, V, bool) { return rmin(r) }
 
-func rmin[K, V any](r _range[K, V]) (K, bool) {
-	var z K
+func rmin[K, V any](r _range[K, V]) (K, V, bool) {
+	var zk K
+	var zv V
 	if x := minNode(r); x != nil {
-		return x.key, true
+		return x.key, x.val, true
 	}
-	return z, false
+	return zk, zv, false
 }
 
 // minNode returns the node with the smallest key in r,
@@ -926,13 +927,13 @@ func minNode[K, V any](r _range[K, V]) *node[K, V] {
 	return n
 }
 
-// Max returns the maximum key from r's underlying map that is in r and true.
-// If m is empty, the second return value is false.
-func (r OrderedRange[K, V]) Max() (K, bool) { return rmax(r) }
+// Max returns the maximum key from r's underlying map that is in r, its value, and true.
+// If m is empty, the third return value is false.
+func (r OrderedRange[K, V]) Max() (K, V, bool) { return rmax(r) }
 
-// Max returns the maximum key from r's underlying map that is in r and true.
-// If m is empty, the second return value is false.
-func (r Range[K, V]) Max() (K, bool) { return rmax(r) }
+// Max returns the maximum key from r's underlying map that is in r, its value, and true.
+// If m is empty, the third return value is false.
+func (r Range[K, V]) Max() (K, V, bool) { return rmax(r) }
 
 // Index returns the index of key within r, or -1 if key is not present or not in bounds.
 func (r OrderedRange[K, V]) Index(key K) int { return rindex(r, key) }
@@ -1007,12 +1008,13 @@ func rindex[K, V any](r _range[K, V], key K) int {
 	return (*pos).rank() - min.rank()
 }
 
-func rmax[K, V any](r _range[K, V]) (K, bool) {
-	var z K
+func rmax[K, V any](r _range[K, V]) (K, V, bool) {
+	var zk K
+	var zv V
 	if x := maxNode(r); x != nil {
-		return x.key, true
+		return x.key, x.val, true
 	}
-	return z, false
+	return zk, zv, false
 }
 
 // maxNode returns the node with the largest key in r,

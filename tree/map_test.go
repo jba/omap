@@ -225,19 +225,21 @@ func TestMinRange(t *testing.T) {
 				m := newMap()
 				_, slice := permute(m, N)
 				r := newRange(m, blo, bhi)
-				have, ok := r.Min()
-				want := 0
+				haveKey, haveVal, ok := r.Min()
+				wantKey := 0
+				wantVal := 0
 				wok := false
 				for k, v := range slice {
 					if v != 0 && in(k, blo, bhi) {
-						want = k
+						wantKey = k
+						wantVal = v
 						wok = true
 						break
 					}
 				}
-				if have != want || ok != wok {
-					t.Errorf("N=%d, r=%s: Min() returned %d, %t want %d, %t",
-						N, rdump(r), have, ok, want, wok)
+				if haveKey != wantKey || haveVal != wantVal || ok != wok {
+					t.Errorf("N=%d, r=%s: Min() returned %d, %d, %t want %d, %d, %t",
+						N, rdump(r), haveKey, haveVal, ok, wantKey, wantVal, wok)
 				}
 			}
 		}
@@ -251,20 +253,22 @@ func TestMaxRange(t *testing.T) {
 				m := newMap()
 				_, slice := permute(m, N)
 				r := newRange(m, blo, bhi)
-				have, ok := r.Max()
-				want := 0
+				haveKey, haveVal, ok := r.Max()
+				wantKey := 0
+				wantVal := 0
 				wok := false
 				for k, v := range slice {
 					k = len(slice) - k - 1
 					if v != 0 && in(k, blo, bhi) {
-						want = k
+						wantKey = k
+						wantVal = slice[k]
 						wok = true
 						break
 					}
 				}
-				if have != want || ok != wok {
-					t.Errorf("N=%d, r=%s: Max() returned %d, %t want %d, %t",
-						N, rdump(r), have, ok, want, wok)
+				if haveKey != wantKey || haveVal != wantVal || ok != wok {
+					t.Errorf("N=%d, r=%s: Max() returned %d, %d, %t want %d, %d, %t",
+						N, rdump(r), haveKey, haveVal, ok, wantKey, wantVal, wok)
 				}
 			}
 		}
@@ -950,8 +954,8 @@ type iRange[K, V any] interface {
 	Clear()
 	All() iter.Seq2[K, V]
 	Backward() iter.Seq2[K, V]
-	Min() (K, bool)
-	Max() (K, bool)
+	Min() (K, V, bool)
+	Max() (K, V, bool)
 }
 
 func rdump[K, V any](ir iRange[K, V]) string {
