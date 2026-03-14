@@ -21,9 +21,9 @@ func BenchmarkInsert(b *testing.B) {
 	b.StartTimer()
 	i := 0
 	for i < b.N {
-		var m OrderedMap[int, int]
+		var m OMap[int, int]
 		for _, item := range insertP {
-			m.Insert(item, item)
+			m.Set(item, item)
 			i++
 			if i >= b.N {
 				return
@@ -32,19 +32,19 @@ func BenchmarkInsert(b *testing.B) {
 	}
 }
 
-func randMap(size int) (*OrderedMap[int, int], []int) {
+func randMap(size int) (*OMap[int, int], []int) {
 	insertP := rand.Perm(size)
-	var m OrderedMap[int, int]
+	var m OMap[int, int]
 	for _, item := range insertP {
-		m.Insert(item, item)
+		m.Set(item, item)
 	}
 	return &m, insertP
 }
 
-func newMap(els []int) *OrderedMap[int, int] {
-	var m OrderedMap[int, int]
+func newMap(els []int) *OMap[int, int] {
+	var m OMap[int, int]
 	for _, item := range els {
-		m.Insert(item, item)
+		m.Set(item, item)
 	}
 	return &m
 }
@@ -69,7 +69,7 @@ func BenchmarkDeleteInsert(b *testing.B) {
 	b.StartTimer()
 	for i := range b.N {
 		m.Delete(insertP[i%benchmarkTreeSize])
-		m.Insert(insertP[i%benchmarkTreeSize], i)
+		m.Set(insertP[i%benchmarkTreeSize], i)
 	}
 }
 

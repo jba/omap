@@ -12,10 +12,10 @@ import (
 )
 
 func ExampleMap_All() {
-	m := &tree.OrderedMap[int, string]{}
-	m.Insert(1, "one")
-	m.Insert(2, "two")
-	m.Insert(3, "three")
+	m := &tree.OMap[int, string]{}
+	m.Set(1, "one")
+	m.Set(2, "two")
+	m.Set(3, "three")
 
 	for k, v := range m.All() {
 		fmt.Println(k, v)
@@ -28,10 +28,10 @@ func ExampleMap_All() {
 }
 
 func ExampleMap_From() {
-	m := &tree.OrderedMap[int, string]{}
-	m.Insert(1, "one")
-	m.Insert(2, "two")
-	m.Insert(3, "three")
+	m := &tree.OMap[int, string]{}
+	m.Set(1, "one")
+	m.Set(2, "two")
+	m.Set(3, "three")
 
 	for k, v := range m.From(2).All() {
 		fmt.Println(k, v)
@@ -43,10 +43,10 @@ func ExampleMap_From() {
 }
 
 func ExampleMap_Below() {
-	m := &tree.OrderedMap[int, string]{}
-	m.Insert(1, "one")
-	m.Insert(2, "two")
-	m.Insert(3, "three")
+	m := &tree.OMap[int, string]{}
+	m.Set(1, "one")
+	m.Set(2, "two")
+	m.Set(3, "three")
 
 	for k, v := range m.Above(1).Below(3).All() {
 		fmt.Println(k, v)

@@ -15,7 +15,7 @@ func (m *Map[K, V]) Clear()
 func (m *Map[K, V]) Clone() *Map[K, V]
 func (m *Map[K, V]) Delete(key K) bool
 func (m *Map[K, V]) Index(key K) int
-func (m *Map[K, V]) Insert(key K, val V) (old V, added bool)
+func (m *Map[K, V]) Set(key K, val V) (old V, added bool)
 func (m *Map[K, V]) Len() int
 func (m *Map[K, V]) Max() (K, V, bool)
 func (m *Map[K, V]) Min() (K, V, bool)
@@ -46,47 +46,47 @@ func (r Range[K, V]) Below(hi K) Range[K, V]
 func (r Range[K, V]) To(hi K) Range[K, V]
 ```
 
-## OrderedMap
+## OMap
 
 ```
-type OrderedMap[K cmp.Ordered, V any] struct{ ... }
+type OMap[K cmp.Ordered, V any] struct{ ... }
 
-func (m *OrderedMap[K, V]) All() iter.Seq2[K, V]
-func (m *OrderedMap[K, V]) At(key K) V
-func (m *OrderedMap[K, V]) Backward() iter.Seq2[K, V]
-func (m *OrderedMap[K, V]) Clear()
-func (m *OrderedMap[K, V]) Clone() *OrderedMap[K, V]
-func (m *OrderedMap[K, V]) Delete(key K) bool
-func (m *OrderedMap[K, V]) Get(key K) (V, bool)
-func (m *OrderedMap[K, V]) Index(key K) int
-func (m *OrderedMap[K, V]) Insert(key K, val V) (old V, added bool)
-func (m *OrderedMap[K, V]) Len() int
-func (m *OrderedMap[K, V]) Max() (K, V, bool)
-func (m *OrderedMap[K, V]) Min() (K, V, bool)
-func (m *OrderedMap[K, V]) Nth(i int) (K, V)
+func (m *OMap[K, V]) All() iter.Seq2[K, V]
+func (m *OMap[K, V]) At(key K) V
+func (m *OMap[K, V]) Backward() iter.Seq2[K, V]
+func (m *OMap[K, V]) Clear()
+func (m *OMap[K, V]) Clone() *OMap[K, V]
+func (m *OMap[K, V]) Delete(key K) bool
+func (m *OMap[K, V]) Get(key K) (V, bool)
+func (m *OMap[K, V]) Index(key K) int
+func (m *OMap[K, V]) Set(key K, val V) (old V, added bool)
+func (m *OMap[K, V]) Len() int
+func (m *OMap[K, V]) Max() (K, V, bool)
+func (m *OMap[K, V]) Min() (K, V, bool)
+func (m *OMap[K, V]) Nth(i int) (K, V)
 
-func (m *OrderedMap[K, V]) Above(lo K) OrderedRange[K, V]
-func (m *OrderedMap[K, V]) Below(hi K) OrderedRange[K, V]
-func (m *OrderedMap[K, V]) From(lo K) OrderedRange[K, V]
-func (m *OrderedMap[K, V]) To(hi K) OrderedRange[K, V]
+func (m *OMap[K, V]) Above(lo K) ORange[K, V]
+func (m *OMap[K, V]) Below(hi K) ORange[K, V]
+func (m *OMap[K, V]) From(lo K) ORange[K, V]
+func (m *OMap[K, V]) To(hi K) ORange[K, V]
 ```
 
-## OrderedRange
+## ORange
 
 ```
-type OrderedRange[K cmp.Ordered, V any] struct{ ... }
+type ORange[K cmp.Ordered, V any] struct{ ... }
 
-func (r OrderedRange[K, V]) All() iter.Seq2[K, V]
-func (r OrderedRange[K, V]) Backward() iter.Seq2[K, V]
-func (r OrderedRange[K, V]) Clear()
-func (r OrderedRange[K, V]) Clone() *OrderedMap[K, V]
-func (r OrderedRange[K, V]) Index(key K) int
-func (r OrderedRange[K, V]) Len() int
-func (r OrderedRange[K, V]) Max() (K, V, bool)
-func (r OrderedRange[K, V]) Min() (K, V, bool)
-func (r OrderedRange[K, V]) Nth(i int) (K, V)
+func (r ORange[K, V]) All() iter.Seq2[K, V]
+func (r ORange[K, V]) Backward() iter.Seq2[K, V]
+func (r ORange[K, V]) Clear()
+func (r ORange[K, V]) Clone() *OMap[K, V]
+func (r ORange[K, V]) Index(key K) int
+func (r ORange[K, V]) Len() int
+func (r ORange[K, V]) Max() (K, V, bool)
+func (r ORange[K, V]) Min() (K, V, bool)
+func (r ORange[K, V]) Nth(i int) (K, V)
 
-func (r OrderedRange[K, V]) Below(hi K) OrderedRange[K, V]
-func (r OrderedRange[K, V]) To(hi K) OrderedRange[K, V]
+func (r ORange[K, V]) Below(hi K) ORange[K, V]
+func (r ORange[K, V]) To(hi K) ORange[K, V]
 ```
 
