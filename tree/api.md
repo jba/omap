@@ -42,11 +42,13 @@ func (m *OMap[K, V]) String() string
 func (m *OMap[K, V]) To(hi K) ORange[K, V]
 func (m *OMap[K, V]) Values() iter.Seq[V]
 type ORange[K cmp.Ordered, V any] struct {
+func (r ORange[K, V]) Above(lo K) ORange[K, V]
 func (r ORange[K, V]) All() iter.Seq2[K, V]
 func (r ORange[K, V]) Backward() iter.Seq2[K, V]
 func (r ORange[K, V]) Below(hi K) ORange[K, V]
 func (r ORange[K, V]) Clear()
 func (r ORange[K, V]) Clone() *OMap[K, V]
+func (r ORange[K, V]) From(lo K) ORange[K, V]
 func (r ORange[K, V]) Index(key K) int
 func (r ORange[K, V]) Keys() iter.Seq[K]
 func (r ORange[K, V]) Len() int
@@ -56,11 +58,13 @@ func (r ORange[K, V]) Nth(i int) (K, V)
 func (r ORange[K, V]) To(hi K) ORange[K, V]
 func (r ORange[K, V]) Values() iter.Seq[V]
 type Range[K, V any] struct {
+func (r Range[K, V]) Above(lo K) Range[K, V]
 func (r Range[K, V]) All() iter.Seq2[K, V]
 func (r Range[K, V]) Backward() iter.Seq2[K, V]
 func (r Range[K, V]) Below(hi K) Range[K, V]
 func (r Range[K, V]) Clear()
 func (r Range[K, V]) Clone() *Map[K, V]
+func (r Range[K, V]) From(lo K) Range[K, V]
 func (r Range[K, V]) Index(key K) int
 func (r Range[K, V]) Keys() iter.Seq[K]
 func (r Range[K, V]) Len() int

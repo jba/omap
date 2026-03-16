@@ -976,44 +976,50 @@ func (r Range[K, V]) inLo(k K) bool {
 }
 
 // To returns an ORange with upper bound hi, inclusive and the same lower bound as r.
-// It panics if r already has an upper bound.
 func (r ORange[K, V]) To(hi K) ORange[K, V] {
-	if r._hi.present {
-		panic("range already has an upper bound")
-	}
 	r._hi = including(hi)
 	return r
 }
 
 // Below returns an ORange with upper bound hi, exclusive and the same lower bound as r.
-// It panics if r already has an upper bound.
 func (r ORange[K, V]) Below(hi K) ORange[K, V] {
-	if r._hi.present {
-		panic("range already has an upper bound")
-	}
 	r._hi = excluding(hi)
 	return r
 }
 
-// To returns a Range with upper bound hi, inclusive and the same lower bound
-// as r.
-// It panics if r already has an upper bound.
+// From returns an ORange with lower bound lo, inclusive and the same upper bound as r.
+func (r ORange[K, V]) From(lo K) ORange[K, V] {
+	r._lo = including(lo)
+	return r
+}
+
+// Above returns an ORange with lower bound lo, exclusive and the same upper bound as r.
+func (r ORange[K, V]) Above(lo K) ORange[K, V] {
+	r._lo = excluding(lo)
+	return r
+}
+
+// To returns a Range with upper bound hi, inclusive and the same lower bound as r.
 func (r Range[K, V]) To(hi K) Range[K, V] {
-	if r._hi.present {
-		panic("range already has an upper bound")
-	}
 	r._hi = including(hi)
 	return r
 }
 
-// Below returns a Range with upper bound hi, exclusive and the same lower bound
-// as r.
-// It panics if r already has an upper bound.
+// Below returns a Range with upper bound hi, exclusive and the same lower bound as r.
 func (r Range[K, V]) Below(hi K) Range[K, V] {
-	if r._hi.present {
-		panic("range already has an upper bound")
-	}
 	r._hi = excluding(hi)
+	return r
+}
+
+// From returns a Range with lower bound lo, inclusive and the same upper bound as r.
+func (r Range[K, V]) From(lo K) Range[K, V] {
+	r._lo = including(lo)
+	return r
+}
+
+// Above returns a Range with lower bound lo, exclusive and the same upper bound as r.
+func (r Range[K, V]) Above(lo K) Range[K, V] {
+	r._lo = excluding(lo)
 	return r
 }
 
