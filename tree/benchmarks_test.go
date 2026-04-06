@@ -21,7 +21,7 @@ func BenchmarkInsert(b *testing.B) {
 	b.StartTimer()
 	i := 0
 	for i < b.N {
-		var m OMap[int, int]
+		var m _OMap[int, int]
 		for _, item := range insertP {
 			m.Set(item, item)
 			i++
@@ -32,17 +32,17 @@ func BenchmarkInsert(b *testing.B) {
 	}
 }
 
-func randMap(size int) (*OMap[int, int], []int) {
+func randMap(size int) (*_OMap[int, int], []int) {
 	insertP := rand.Perm(size)
-	var m OMap[int, int]
+	var m _OMap[int, int]
 	for _, item := range insertP {
 		m.Set(item, item)
 	}
 	return &m, insertP
 }
 
-func newMap(els []int) *OMap[int, int] {
-	var m OMap[int, int]
+func newMap(els []int) *_OMap[int, int] {
+	var m _OMap[int, int]
 	for _, item := range els {
 		m.Set(item, item)
 	}

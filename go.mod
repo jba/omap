@@ -1,3 +1,3 @@
 module github.com/jba/omap
 
-go 1.24
+go 1.26

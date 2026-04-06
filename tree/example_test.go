@@ -6,13 +6,14 @@
 package tree_test
 
 import (
+	"cmp"
 	"fmt"
 
 	"github.com/jba/omap/tree"
 )
 
 func ExampleMap_All() {
-	m := &tree.OMap[int, string]{}
+	m := tree.NewMap[int, string](cmp.Compare)
 	m.Set(1, "one")
 	m.Set(2, "two")
 	m.Set(3, "three")
@@ -28,7 +29,7 @@ func ExampleMap_All() {
 }
 
 func ExampleMap_From() {
-	m := &tree.OMap[int, string]{}
+	m := tree.NewMap[int, string](cmp.Compare)
 	m.Set(1, "one")
 	m.Set(2, "two")
 	m.Set(3, "three")
@@ -43,7 +44,7 @@ func ExampleMap_From() {
 }
 
 func ExampleMap_Below() {
-	m := &tree.OMap[int, string]{}
+	m := tree.NewMap[int, string](cmp.Compare)
 	m.Set(1, "one")
 	m.Set(2, "two")
 	m.Set(3, "three")

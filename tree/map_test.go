@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build go1.23
-
 package tree
 
 import (
@@ -85,7 +83,7 @@ func dump(m Interface[int, int]) string {
 
 func test(t *testing.T, f func(*testing.T, func() Interface[int, int])) {
 	t.Run("Map", func(t *testing.T) {
-		f(t, func() Interface[int, int] { return new(OMap[int, int]) })
+		f(t, func() Interface[int, int] { return new(_OMap[int, int]) })
 	})
 	t.Run("MapFunc", func(t *testing.T) {
 		f(t, func() Interface[int, int] { return NewMap[int, int](cmp.Compare) })
@@ -109,7 +107,7 @@ func TestGet(t *testing.T) {
 
 func TestAt(t *testing.T) {
 	t.Run("OMap", func(t *testing.T) {
-		var m OMap[int, int]
+		var m _OMap[int, int]
 		// Missing key returns zero
 		if got := m.At(1); got != 0 {
 			t.Errorf("At(1) on empty map: got %d, want 0", got)
@@ -325,7 +323,7 @@ func TestBackward(t *testing.T) {
 func TestKeys(t *testing.T) {
 	t.Run("OMap", func(t *testing.T) {
 		for N := range 11 {
-			m := &OMap[int, int]{}
+			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			var have []int
 			for k := range m.Keys() {
@@ -362,7 +360,7 @@ func TestKeys(t *testing.T) {
 func TestValues(t *testing.T) {
 	t.Run("OMap", func(t *testing.T) {
 		for N := range 11 {
-			m := &OMap[int, int]{}
+			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			var have []int
 			for v := range m.Values() {
@@ -405,7 +403,7 @@ func TestValues(t *testing.T) {
 func Test_backwardKeys(t *testing.T) {
 	t.Run("OMap", func(t *testing.T) {
 		for N := range 11 {
-			m := &OMap[int, int]{}
+			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			var have []int
 			for k := range m.backwardKeys() {
@@ -444,7 +442,7 @@ func Test_backwardKeys(t *testing.T) {
 func Test_backwardValues(t *testing.T) {
 	t.Run("OMap", func(t *testing.T) {
 		for N := range 11 {
-			m := &OMap[int, int]{}
+			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			var have []int
 			for v := range m.backwardValues() {
@@ -562,7 +560,7 @@ func TestBackwardRange(t *testing.T) {
 func TestKeysRange(t *testing.T) {
 	t.Run("ORange", func(t *testing.T) {
 		for N := range 11 {
-			m := &OMap[int, int]{}
+			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
 				r := ORange[int, int]{m: m, _lo: blo, _hi: bhi}
@@ -615,7 +613,7 @@ func TestKeysRange(t *testing.T) {
 func TestValuesRange(t *testing.T) {
 	t.Run("ORange", func(t *testing.T) {
 		for N := range 11 {
-			m := &OMap[int, int]{}
+			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
 				r := ORange[int, int]{m: m, _lo: blo, _hi: bhi}
@@ -668,7 +666,7 @@ func TestValuesRange(t *testing.T) {
 func Test_backwardKeysRange(t *testing.T) {
 	t.Run("ORange", func(t *testing.T) {
 		for N := range 11 {
-			m := &OMap[int, int]{}
+			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
 				r := ORange[int, int]{m: m, _lo: blo, _hi: bhi}
@@ -723,7 +721,7 @@ func Test_backwardKeysRange(t *testing.T) {
 func Test_backwardValuesRange(t *testing.T) {
 	t.Run("ORange", func(t *testing.T) {
 		for N := range 11 {
-			m := &OMap[int, int]{}
+			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
 				r := ORange[int, int]{m: m, _lo: blo, _hi: bhi}
@@ -828,7 +826,7 @@ func TestClone(t *testing.T) {
 
 	t.Run("Map", func(t *testing.T) {
 		for N := range 11 {
-			m := &OMap[int, int]{}
+			m := &_OMap[int, int]{}
 			permute(m, N)
 			if !equal(m, m.Clone()) {
 				t.Errorf("N=%d: not equal", N)
@@ -988,7 +986,7 @@ func TestNth(t *testing.T) {
 
 func TestIndex(t *testing.T) {
 	t.Run("OMap", func(t *testing.T) {
-		var m OMap[int, int]
+		var m _OMap[int, int]
 		// Empty map
 		if got := m.Index(1); got != -1 {
 			t.Errorf("empty map: got %d, want -1", got)
@@ -1044,7 +1042,7 @@ func TestIndex(t *testing.T) {
 	})
 
 	t.Run("ORange", func(t *testing.T) {
-		var m OMap[int, int]
+		var m _OMap[int, int]
 		// Insert keys 2, 4, 6, 8, 10
 		for i := 1; i <= 5; i++ {
 			m.Set(2*i, i)
@@ -1106,7 +1104,7 @@ func TestIndex(t *testing.T) {
 
 func TestRangeLen(t *testing.T) {
 	t.Run("ORange", func(t *testing.T) {
-		var m OMap[int, int]
+		var m _OMap[int, int]
 		// Empty range on empty map
 		if got := m.From(1).To(10).Len(); got != 0 {
 			t.Errorf("empty map: got %d, want 0", got)
@@ -1174,7 +1172,7 @@ func TestRangeLen(t *testing.T) {
 
 func TestRangeNth(t *testing.T) {
 	t.Run("ORange", func(t *testing.T) {
-		var m OMap[int, int]
+		var m _OMap[int, int]
 		// Insert keys 2, 4, 6, 8, 10 with values 1, 2, 3, 4, 5
 		for i := 1; i <= 5; i++ {
 			m.Set(2*i, i)
@@ -1216,7 +1214,7 @@ func TestRangeNth(t *testing.T) {
 
 func TestRangeClone(t *testing.T) {
 	t.Run("ORange", func(t *testing.T) {
-		var m OMap[int, int]
+		var m _OMap[int, int]
 		// Insert keys 2, 4, 6, 8, 10 with values 1, 2, 3, 4, 5
 		for i := 1; i <= 5; i++ {
 			m.Set(2*i, i)
@@ -1287,7 +1285,7 @@ func chsz[K, V any](t *testing.T, x *node[K, V]) {
 
 func TestRangeCreation(t *testing.T) {
 	t.Run("Map", func(t *testing.T) {
-		m := &OMap[int, int]{}
+		m := &_OMap[int, int]{}
 
 		for _, tc := range []struct {
 			r    ORange[int, int]
@@ -1369,7 +1367,7 @@ func rdump[K, V any](ir iRange[K, V]) string {
 
 func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
 	switch m := m.(type) {
-	case *OMap[K, V]:
+	case *_OMap[K, V]:
 		return ORange[K, V]{m: m, _lo: lo, _hi: hi}
 	case *Map[K, V]:
 		return Range[K, V]{m: m, _lo: lo, _hi: hi}
@@ -1410,7 +1408,7 @@ func bounds(n int) iter.Seq2[bound[int], bound[int]] {
 func TestBounds(t *testing.T) {
 	got := map[string]bool{}
 	for blo, bhi := range bounds(2) {
-		got[rdump(newRange(&OMap[int, int]{}, blo, bhi))] = true
+		got[rdump(newRange(&_OMap[int, int]{}, blo, bhi))] = true
 	}
 	wants := []string{
 		"(0, 0)",
