@@ -133,6 +133,38 @@ func (m *Map[K, V]) find(k K) (pos **node[K, V], parent *node[K, V]) {
 	return pos, parent
 }
 
+// Contains reports whether the map contains an entry with the given key.
+func (m *_OMap[K, V]) Contains(key K) bool {
+	pos, _ := m.find(key)
+	return *pos != nil
+}
+
+// Contains reports whether the map contains an entry with the given key.
+func (m *Map[K, V]) Contains(key K) bool {
+	pos, _ := m.find(key)
+	return *pos != nil
+}
+
+// ContainsAll reports whether the map contains an entry for each key in the sequence.
+func (m *_OMap[K, V]) ContainsAll(keys iter.Seq[K]) bool {
+	for k := range m.Keys() {
+		if !m.Contains(k) {
+			return false
+		}
+	}
+	return true
+}
+
+// ContainsAll reports whether the map contains an entry for each key in the sequence.
+func (m *Map[K, V]) ContainsAll(keys iter.Seq[K]) bool {
+	for k := range m.Keys() {
+		if !m.Contains(k) {
+			return false
+		}
+	}
+	return true
+}
+
 // Get returns the value of m[key] and reports whether it exists.
 func (m *_OMap[K, V]) Get(key K) (V, bool) {
 	return get(m, key)
@@ -197,6 +229,24 @@ func set[K, V any](m omap[K, V], key K, val V) (V, bool) {
 	return z, true
 }
 
+// SetAll calls Set(k, v) for each key/value pair in the sequence.
+// It reports whether the number of map entries increased.
+func (m *Map[K, V]) SetAll(seq iter.Seq2[K, V]) bool {
+	pre := m.Len()
+	for k, v := range seq {
+		m.Set(k, v)
+	}
+	return m.Len() > pre
+}
+
+func (m *_OMap[K, V]) SetAll(seq iter.Seq2[K, V]) bool {
+	pre := m.Len()
+	for k, v := range seq {
+		m.Set(k, v)
+	}
+	return m.Len() > pre
+}
+
 // rotateUp rotates x upward in the tree to correct any priority inversions.
 func rotateUp[K, V any](m omap[K, V], x *node[K, V]) {
 	// Rotate up into tree according to priority.
@@ -209,22 +259,27 @@ func rotateUp[K, V any](m omap[K, V], x *node[K, V]) {
 	}
 }
 
-// Delete deletes m[key] if it exists.
-func (m *_OMap[K, V]) Delete(key K) bool {
+// Delete removes the entry with the given key, if present.
+// It reports whether the map changed, and returns the previous value, if any.
+func (m *_OMap[K, V]) Delete(key K) (V, bool) {
 	return _delete(m, key)
 }
 
-// Delete deletes m[key] if it exists.
-func (m *Map[K, V]) Delete(key K) bool {
+// Delete removes the entry with the given key, if present.
+// It reports whether the map changed, and returns the previous value, if any.
+func (m *Map[K, V]) Delete(key K) (V, bool) {
 	return _delete(m, key)
 }
 
-func _delete[K, V any](m omap[K, V], key K) bool {
+func _delete[K, V any](m omap[K, V], key K) (V, bool) {
 	pos, _ := m.find(key)
 	x := *pos
 	if x == nil {
-		return false
+		var z V
+		// TODO(jba): test prev
+		return z, false
 	}
+	prev := x.val
 
 	// Rotate x down to be leaf of tree for removal, respecting priorities.
 	for x.right != nil || x.left != nil {
@@ -251,7 +306,30 @@ func _delete[K, V any](m omap[K, V], key K) bool {
 		p._size--
 	}
 
-	return true
+	// TODO(jba): test prev
+	return prev, true
+}
+
+// DeleteAll removes all the entries whose keys are in the sequence.
+// It reports whether the map changed.
+func (m *_OMap[K, V]) DeleteAll(keys iter.Seq[K]) bool {
+	return _deleteAll(m, keys)
+}
+
+// DeleteAll removes all the entries whose keys are in the sequence.
+// It reports whether the map changed.
+func (m *Map[K, V]) DeleteAll(keys iter.Seq[K]) bool {
+	return _deleteAll(m, keys)
+}
+
+func _deleteAll[K, V any](m omap[K, V], seq iter.Seq[K]) bool {
+	changed := false
+	for k := range seq {
+		if _, ok := _delete(m, k); ok {
+			changed = true
+		}
+	}
+	return changed
 }
 
 // Min returns the minimum key in m, its value, and true.
@@ -747,16 +825,22 @@ func rotateRight[K, V any](m omap[K, V], y *node[K, V]) {
 	// parent size doesn't change.
 }
 
-// Clear deletes m[k] for all keys in m.
-func (m *_OMap[K, V]) Clear() {
+// Clear removes all entries from the map.
+// It reports whether the size changed.
+func (m *_OMap[K, V]) Clear() bool {
+	nonEmpty := m.Len() > 0
 	m._root = nil
 	m._gen++
+	return nonEmpty
 }
 
-// Clear deletes m[k] for all keys in m.
-func (m *Map[K, V]) Clear() {
+// Clear removes all entries from the map.
+// It reports whether the size changed.
+func (m *Map[K, V]) Clear() bool {
+	nonEmpty := m.Len() > 0
 	m._root = nil
 	m._gen++
+	return nonEmpty
 }
 
 // Clone returns a shallow copy of m.

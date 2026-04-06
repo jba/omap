@@ -9,6 +9,7 @@ import (
 	"cmp"
 	"fmt"
 	"iter"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"reflect"
@@ -20,13 +21,15 @@ import (
 type Interface[K, V any] interface {
 	All() iter.Seq2[K, V]
 	Backward() iter.Seq2[K, V]
-	Delete(key K) bool
+	Delete(key K) (V, bool)
 	Get(key K) (V, bool)
 	Set(key K, val V) (V, bool)
 	Min() (K, V, bool)
 	Max() (K, V, bool)
 	Len() int
 	Nth(int) (K, V)
+	SetAll(iter.Seq2[K, V]) bool
+	DeleteAll(iter.Seq[K]) bool
 
 	root() **node[K, V]
 }
@@ -166,6 +169,48 @@ func TestSet(t *testing.T) {
 		check(m.Set(1, 5))(10, false)
 		check(m.Set(1, 8))(5, false)
 	})
+}
+
+func TestSetAll(t *testing.T) {
+	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		m := newMap()
+		m.Set(0, 1)
+		gotb := m.SetAll(slices.All([]int{1, 3, 5}))
+		if !gotb {
+			t.Fatal("got false, want true")
+		}
+		got := toMap(m)
+		want := map[int]int{0: 1, 1: 3, 2: 5}
+		if !maps.Equal(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+}
+
+func TestDeleteAll(t *testing.T) {
+	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
+		m := newMap()
+		m.SetAll(slices.All([]int{1, 3, 5}))
+		// keys are 0, 1, 2
+		gotb := m.DeleteAll(slices.Values([]int{2, 3, 5}))
+		if !gotb {
+			t.Fatal("got false, want true")
+		}
+
+		got := toMap(m)
+		want := map[int]int{0: 1, 1: 3}
+		if !maps.Equal(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+}
+
+func toMap(in Interface[int, int]) map[int]int {
+	out := map[int]int{}
+	for k, v := range in.All() {
+		out[k] = v
+	}
+	return out
 }
 
 func TestMin(t *testing.T) {
@@ -789,7 +834,7 @@ func TestDelete(t *testing.T) {
 			checkLen(m, N)
 			wantLen := N
 			for _, x := range rand.Perm(len(slice)) {
-				if m.Delete(x) {
+				if _, ok := m.Delete(x); ok {
 					wantLen--
 				}
 				checkLen(m, wantLen)
@@ -1505,4 +1550,32 @@ func TestRangeString(t *testing.T) {
 			t.Errorf("%v: got %q, want %q", test.r, got, test.want)
 		}
 	}
+}
+
+var _ AbstractMap[int, int, *Map[int, int]] = NewMap[int, int](cmp.Compare)
+
+// copied temporarily from https://go-review.git.corp.google.com/c/go/+/761460/1/src/container/container_test.go
+
+type AbstractCollection[E any, C AbstractCollection[E, C]] interface {
+	Clear() bool
+	Clone() C
+	Contains(e E) bool
+	ContainsAll(seq iter.Seq[E]) bool
+	Len() int
+	String() string
+}
+
+type AbstractMap[K, V any, M AbstractMap[K, V, M]] interface {
+	AbstractCollection[K, M]
+
+	All() iter.Seq2[K, V]
+	At(key K) V
+	Delete(key K) (V, bool)
+	DeleteAll(keys iter.Seq[K]) bool
+	Get(key K) (V, bool)
+	Keys() iter.Seq[K]
+	// Set(K, V) V
+	Set(K, V) (V, bool)
+	SetAll(iter.Seq2[K, V]) bool
+	Values() iter.Seq[V]
 }
