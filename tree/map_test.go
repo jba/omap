@@ -608,7 +608,7 @@ func TestKeysRange(t *testing.T) {
 			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := _ORange[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := _OMapSpan[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for k := range r.Keys() {
 					have = append(have, k)
@@ -661,7 +661,7 @@ func TestValuesRange(t *testing.T) {
 			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := _ORange[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := _OMapSpan[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for v := range r.Values() {
 					have = append(have, v)
@@ -714,7 +714,7 @@ func Test_backwardKeysRange(t *testing.T) {
 			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := _ORange[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := _OMapSpan[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for k := range r.backwardKeys() {
 					have = append(have, k)
@@ -769,7 +769,7 @@ func Test_backwardValuesRange(t *testing.T) {
 			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := _ORange[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := _OMapSpan[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for v := range r.backwardValues() {
 					have = append(have, v)
@@ -1333,7 +1333,7 @@ func TestRangeCreation(t *testing.T) {
 		m := &_OMap[int, int]{}
 
 		for _, tc := range []struct {
-			r    _ORange[int, int]
+			r    _OMapSpan[int, int]
 			want string
 		}{
 			{m.From(2), "[2, ∞)"},
@@ -1413,7 +1413,7 @@ func rdump[K, V any](ir iRange[K, V]) string {
 func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
 	switch m := m.(type) {
 	case *_OMap[K, V]:
-		return _ORange[K, V]{m: m, _lo: lo, _hi: hi}
+		return _OMapSpan[K, V]{m: m, _lo: lo, _hi: hi}
 	case *Map[K, V]:
 		return MapSpan[K, V]{m: m, _lo: lo, _hi: hi}
 	default:
