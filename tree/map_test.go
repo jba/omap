@@ -608,7 +608,7 @@ func TestKeysRange(t *testing.T) {
 			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := ORange[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := _ORange[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for k := range r.Keys() {
 					have = append(have, k)
@@ -661,7 +661,7 @@ func TestValuesRange(t *testing.T) {
 			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := ORange[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := _ORange[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for v := range r.Values() {
 					have = append(have, v)
@@ -714,7 +714,7 @@ func Test_backwardKeysRange(t *testing.T) {
 			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := ORange[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := _ORange[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for k := range r.backwardKeys() {
 					have = append(have, k)
@@ -769,7 +769,7 @@ func Test_backwardValuesRange(t *testing.T) {
 			m := &_OMap[int, int]{}
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := ORange[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := _ORange[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for v := range r.backwardValues() {
 					have = append(have, v)
@@ -1333,7 +1333,7 @@ func TestRangeCreation(t *testing.T) {
 		m := &_OMap[int, int]{}
 
 		for _, tc := range []struct {
-			r    ORange[int, int]
+			r    _ORange[int, int]
 			want string
 		}{
 			{m.From(2), "[2, ∞)"},
@@ -1413,7 +1413,7 @@ func rdump[K, V any](ir iRange[K, V]) string {
 func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
 	switch m := m.(type) {
 	case *_OMap[K, V]:
-		return ORange[K, V]{m: m, _lo: lo, _hi: hi}
+		return _ORange[K, V]{m: m, _lo: lo, _hi: hi}
 	case *Map[K, V]:
 		return Range[K, V]{m: m, _lo: lo, _hi: hi}
 	default:
@@ -1557,7 +1557,7 @@ var _ AbstractMap[int, int, *Map[int, int]] = NewMap[int, int](cmp.Compare)
 // copied temporarily from https://go-review.git.corp.google.com/c/go/+/761460/1/src/container/container_test.go
 
 type AbstractCollection[E any, C AbstractCollection[E, C]] interface {
-	Clear() bool
+	Clear()
 	Clone() C
 	Contains(e E) bool
 	ContainsAll(seq iter.Seq[E]) bool
@@ -1574,7 +1574,6 @@ type AbstractMap[K, V any, M AbstractMap[K, V, M]] interface {
 	DeleteAll(keys iter.Seq[K]) bool
 	Get(key K) (V, bool)
 	Keys() iter.Seq[K]
-	// Set(K, V) V
 	Set(K, V) (V, bool)
 	SetAll(iter.Seq2[K, V]) bool
 	Values() iter.Seq[V]

@@ -826,21 +826,15 @@ func rotateRight[K, V any](m omap[K, V], y *node[K, V]) {
 }
 
 // Clear removes all entries from the map.
-// It reports whether the size changed.
-func (m *_OMap[K, V]) Clear() bool {
-	nonEmpty := m.Len() > 0
+func (m *_OMap[K, V]) Clear() {
 	m._root = nil
 	m._gen++
-	return nonEmpty
 }
 
 // Clear removes all entries from the map.
-// It reports whether the size changed.
-func (m *Map[K, V]) Clear() bool {
-	nonEmpty := m.Len() > 0
+func (m *Map[K, V]) Clear() {
 	m._root = nil
 	m._gen++
-	return nonEmpty
 }
 
 // Clone returns a shallow copy of m.
@@ -945,23 +939,23 @@ func (x *node[K, V]) nth(i int) (K, V) {
 }
 
 // From returns an ORange with lower bound lo, inclusive, and no upper bound.
-func (m *_OMap[K, V]) From(lo K) ORange[K, V] {
-	return ORange[K, V]{m: m, _lo: including(lo)}
+func (m *_OMap[K, V]) From(lo K) _ORange[K, V] {
+	return _ORange[K, V]{m: m, _lo: including(lo)}
 }
 
 // Above returns an ORange with lower bound lo, exclusive, and no upper bound.
-func (m *_OMap[K, V]) Above(lo K) ORange[K, V] {
-	return ORange[K, V]{m: m, _lo: excluding(lo)}
+func (m *_OMap[K, V]) Above(lo K) _ORange[K, V] {
+	return _ORange[K, V]{m: m, _lo: excluding(lo)}
 }
 
 // To returns an ORange with upper bound hi, inclusive, and no lower bound.
-func (m *_OMap[K, V]) To(hi K) ORange[K, V] {
-	return ORange[K, V]{m: m, _hi: including(hi)}
+func (m *_OMap[K, V]) To(hi K) _ORange[K, V] {
+	return _ORange[K, V]{m: m, _hi: including(hi)}
 }
 
 // Below returns an ORange with upper bound hi, exclusive, and no lower bound.
-func (m *_OMap[K, V]) Below(hi K) ORange[K, V] {
-	return ORange[K, V]{m: m, _hi: excluding(hi)}
+func (m *_OMap[K, V]) Below(hi K) _ORange[K, V] {
+	return _ORange[K, V]{m: m, _hi: excluding(hi)}
 }
 
 // From returns an Range with lower bound lo, inclusive, and no upper bound.
@@ -976,8 +970,8 @@ func (m *Map[K, V]) To(hi K) Range[K, V] { return Range[K, V]{m: m, _hi: includi
 // Below returns an Range with upper bound hi, exclusive, and no lower bound.
 func (m *Map[K, V]) Below(hi K) Range[K, V] { return Range[K, V]{m: m, _hi: excluding(hi)} }
 
-// A ORange is a subsequence of keys in an [_OMap].
-type ORange[K cmp.Ordered, V any] struct {
+// A _ORange is a subsequence of keys in an [_OMap].
+type _ORange[K cmp.Ordered, V any] struct {
 	m        *_OMap[K, V]
 	_lo, _hi bound[K]
 }
@@ -1010,16 +1004,16 @@ func excluding[K any](k K) bound[K] {
 	return bound[K]{k, true, false}
 }
 
-func (r ORange[K, V]) omap() omap[K, V] { return r.m }
-func (r Range[K, V]) omap() omap[K, V]  { return r.m }
+func (r _ORange[K, V]) omap() omap[K, V] { return r.m }
+func (r Range[K, V]) omap() omap[K, V]   { return r.m }
 
-func (r ORange[K, V]) lo() bound[K] { return r._lo }
-func (r Range[K, V]) lo() bound[K]  { return r._lo }
+func (r _ORange[K, V]) lo() bound[K] { return r._lo }
+func (r Range[K, V]) lo() bound[K]   { return r._lo }
 
-func (r ORange[K, V]) hi() bound[K] { return r._hi }
-func (r Range[K, V]) hi() bound[K]  { return r._hi }
+func (r _ORange[K, V]) hi() bound[K] { return r._hi }
+func (r Range[K, V]) hi() bound[K]   { return r._hi }
 
-func (r ORange[K, V]) inHi(k K) bool {
+func (r _ORange[K, V]) inHi(k K) bool {
 	if !r._hi.present {
 		return true
 	}
@@ -1029,7 +1023,7 @@ func (r ORange[K, V]) inHi(k K) bool {
 	return k < r._hi.key
 }
 
-func (r ORange[K, V]) inLo(k K) bool {
+func (r _ORange[K, V]) inLo(k K) bool {
 	if !r._lo.present {
 		return true
 	}
@@ -1060,25 +1054,25 @@ func (r Range[K, V]) inLo(k K) bool {
 }
 
 // To returns an ORange with upper bound hi, inclusive and the same lower bound as r.
-func (r ORange[K, V]) To(hi K) ORange[K, V] {
+func (r _ORange[K, V]) To(hi K) _ORange[K, V] {
 	r._hi = including(hi)
 	return r
 }
 
 // Below returns an ORange with upper bound hi, exclusive and the same lower bound as r.
-func (r ORange[K, V]) Below(hi K) ORange[K, V] {
+func (r _ORange[K, V]) Below(hi K) _ORange[K, V] {
 	r._hi = excluding(hi)
 	return r
 }
 
 // From returns an ORange with lower bound lo, inclusive and the same upper bound as r.
-func (r ORange[K, V]) From(lo K) ORange[K, V] {
+func (r _ORange[K, V]) From(lo K) _ORange[K, V] {
 	r._lo = including(lo)
 	return r
 }
 
 // Above returns an ORange with lower bound lo, exclusive and the same upper bound as r.
-func (r ORange[K, V]) Above(lo K) ORange[K, V] {
+func (r _ORange[K, V]) Above(lo K) _ORange[K, V] {
 	r._lo = excluding(lo)
 	return r
 }
@@ -1109,7 +1103,7 @@ func (r Range[K, V]) Above(lo K) Range[K, V] {
 
 // Min returns the minimum key from r's underlying map that is in r, its value, and true.
 // If m is empty, the third return value is false.
-func (r ORange[K, V]) Min() (K, V, bool) { return rmin(r) }
+func (r _ORange[K, V]) Min() (K, V, bool) { return rmin(r) }
 
 // Min returns the minimum key from r's underlying map that is in r, its value, and true.
 // If m is empty, the third return value is false.
@@ -1150,20 +1144,20 @@ func minNode[K, V any](r _range[K, V]) *node[K, V] {
 
 // Max returns the maximum key from r's underlying map that is in r, its value, and true.
 // If m is empty, the third return value is false.
-func (r ORange[K, V]) Max() (K, V, bool) { return rmax(r) }
+func (r _ORange[K, V]) Max() (K, V, bool) { return rmax(r) }
 
 // Max returns the maximum key from r's underlying map that is in r, its value, and true.
 // If m is empty, the third return value is false.
 func (r Range[K, V]) Max() (K, V, bool) { return rmax(r) }
 
 // Index returns the index of key within r, or -1 if key is not present or not in bounds.
-func (r ORange[K, V]) Index(key K) int { return rindex(r, key) }
+func (r _ORange[K, V]) Index(key K) int { return rindex(r, key) }
 
 // Index returns the index of key within r, or -1 if key is not present or not in bounds.
 func (r Range[K, V]) Index(key K) int { return rindex(r, key) }
 
 // Len returns the number of keys in r.
-func (r ORange[K, V]) Len() int { return rlen(r) }
+func (r _ORange[K, V]) Len() int { return rlen(r) }
 
 // Len returns the number of keys in r.
 func (r Range[K, V]) Len() int { return rlen(r) }
@@ -1182,7 +1176,7 @@ func rlen[K, V any](r _range[K, V]) int {
 
 // Nth returns the key and value at index i within r.
 // It panics if i < 0 or i >= r.Len().
-func (r ORange[K, V]) Nth(i int) (K, V) { return rnth(r, i) }
+func (r _ORange[K, V]) Nth(i int) (K, V) { return rnth(r, i) }
 
 // Nth returns the key and value at index i within r.
 // It panics if i < 0 or i >= r.Len().
@@ -1197,7 +1191,7 @@ func rnth[K, V any](r _range[K, V], i int) (K, V) {
 }
 
 // Clone returns a new OMap containing only the keys in r.
-func (r ORange[K, V]) Clone() *_OMap[K, V] {
+func (r _ORange[K, V]) Clone() *_OMap[K, V] {
 	m := &_OMap[K, V]{}
 	for k, v := range r.All() {
 		m.Set(k, v)
@@ -1263,7 +1257,7 @@ func maxNode[K, V any](r _range[K, V]) *node[K, V] {
 }
 
 // Clear deletes all the entries in r from r's underlying map.
-func (r ORange[K, V]) Clear() {
+func (r _ORange[K, V]) Clear() {
 	deleteRange(r.m, r.lo(), r.hi())
 	r.m._gen++
 }
@@ -1276,7 +1270,7 @@ func (r Range[K, V]) Clear() {
 
 // All returns an iterator over r's underlying map from smallest to largest key in r.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
-func (r ORange[K, V]) All() iter.Seq2[K, V] { return rall(r) }
+func (r _ORange[K, V]) All() iter.Seq2[K, V] { return rall(r) }
 
 // All returns an iterator over r's underlying map from smallest to largest key in r.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
@@ -1308,7 +1302,7 @@ func rall[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 
 // Keys returns an iterator over the keys in r from smallest to largest.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
-func (r ORange[K, V]) Keys() iter.Seq[K] { return rkeys(r) }
+func (r _ORange[K, V]) Keys() iter.Seq[K] { return rkeys(r) }
 
 // Keys returns an iterator over the keys in r from smallest to largest.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
@@ -1340,7 +1334,7 @@ func rkeys[K, V any](r _range[K, V]) iter.Seq[K] {
 
 // Values returns an iterator over the values in r from smallest to largest key.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
-func (r ORange[K, V]) Values() iter.Seq[V] { return rvalues(r) }
+func (r _ORange[K, V]) Values() iter.Seq[V] { return rvalues(r) }
 
 // Values returns an iterator over the values in r from smallest to largest key.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
@@ -1372,7 +1366,7 @@ func rvalues[K, V any](r _range[K, V]) iter.Seq[V] {
 
 // Backward returns an iterator over r's underlying map from largest to smallest key in r.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
-func (r ORange[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
+func (r _ORange[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
 
 // Backward returns an iterator over r's underlying map from largest to smallest key in r.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
@@ -1404,7 +1398,7 @@ func rbackward[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 
 // backwardKeys returns an iterator over the keys in r from largest to smallest.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
-func (r ORange[K, V]) backwardKeys() iter.Seq[K] { return rbackwardKeys(r) }
+func (r _ORange[K, V]) backwardKeys() iter.Seq[K] { return rbackwardKeys(r) }
 
 // backwardKeys returns an iterator over the keys in r from largest to smallest.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
@@ -1436,7 +1430,7 @@ func rbackwardKeys[K, V any](r _range[K, V]) iter.Seq[K] {
 
 // backwardValues returns an iterator over the values in r from largest to smallest key.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
-func (r ORange[K, V]) backwardValues() iter.Seq[V] { return rbackwardValues(r) }
+func (r _ORange[K, V]) backwardValues() iter.Seq[V] { return rbackwardValues(r) }
 
 // backwardValues returns an iterator over the values in r from largest to smallest key.
 // See [_OMap.All] for the guarantee provided if m is modified during the iteration.
