@@ -1552,6 +1552,103 @@ func TestRangeString(t *testing.T) {
 	}
 }
 
+func TestRangeBounds(t *testing.T) {
+	m := NewMap[int, int](cmp.Compare[int])
+	for _, test := range []struct {
+		name string
+		got  Range[int, int]
+		want string
+	}{
+		{
+			"To1",
+			Range[int, int]{m, inf(), inf()}.To(10),
+			"(-∞, 10]",
+		},
+		{
+			"To2",
+			Range[int, int]{m, inf(), including(10)}.To(10),
+			"(-∞, 10]",
+		},
+		{
+			"To3",
+			Range[int, int]{m, inf(), excluding(10)}.To(10),
+			"(-∞, 10)",
+		},
+		{
+			"To4",
+			Range[int, int]{m, inf(), including(9)}.To(10),
+			"(-∞, 9]",
+		},
+		{
+			"Below1",
+			Range[int, int]{m, inf(), inf()}.Below(10),
+			"(-∞, 10)",
+		},
+		{
+			"Below2",
+			Range[int, int]{m, inf(), including(10)}.Below(10),
+			"(-∞, 10)",
+		},
+		{
+			"Below3",
+			Range[int, int]{m, inf(), excluding(10)}.Below(10),
+			"(-∞, 10)",
+		},
+		{
+			"Below4",
+			Range[int, int]{m, inf(), including(9)}.Below(10),
+			"(-∞, 9]",
+		},
+		{
+			"From1",
+			Range[int, int]{m, inf(), inf()}.From(10),
+			"[10, ∞)",
+		},
+		{
+			"From2",
+			Range[int, int]{m, including(10), inf()}.From(10),
+			"[10, ∞)",
+		},
+		{
+			"From3",
+			Range[int, int]{m, excluding(10), inf()}.From(10),
+			"(10, ∞)",
+		},
+		{
+			"From4",
+			Range[int, int]{m, including(11), inf()}.From(10),
+			"[11, ∞)",
+		},
+		{
+			"Above1",
+			Range[int, int]{m, inf(), inf()}.Above(10),
+			"(10, ∞)",
+		},
+		{
+			"Above2",
+			Range[int, int]{m, including(10), inf()}.Above(10),
+			"(10, ∞)",
+		},
+		{
+			"Above3",
+			Range[int, int]{m, excluding(10), inf()}.Above(10),
+			"(10, ∞)",
+		},
+		{
+			"Above4",
+			Range[int, int]{m, including(11), inf()}.Above(10),
+			"[11, ∞)",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := rdump[int, int](test.got)
+			if got != test.want {
+				t.Errorf("got %s, want %s", got, test.want)
+			}
+		})
+	}
+}
+
 var _ AbstractMap[int, int, *Map[int, int]] = NewMap[int, int](cmp.Compare)
 
 // copied temporarily from https://go-review.git.corp.google.com/c/go/+/761460/1/src/container/container_test.go
