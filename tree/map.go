@@ -1077,27 +1077,39 @@ func (r _ORange[K, V]) Above(lo K) _ORange[K, V] {
 	return r
 }
 
-// To returns a Range with upper bound hi, inclusive and the same lower bound as r.
+// To returns a Range with upper bound hi, inclusive and the same lower bound as r,
+// if hi is within r's current upper bound. Otherwise, it returns r.
 func (r Range[K, V]) To(hi K) Range[K, V] {
-	r._hi = including(hi)
+	if r.inHi(hi) {
+		r._hi = including(hi)
+	}
 	return r
 }
 
-// Below returns a Range with upper bound hi, exclusive and the same lower bound as r.
+// Below returns a Range with upper bound hi, exclusive and the same lower bound as r,
+// if hi is within r's current upper bound. Otherwise, it returns r.
 func (r Range[K, V]) Below(hi K) Range[K, V] {
-	r._hi = excluding(hi)
+	if r.inHi(hi) {
+		r._hi = excluding(hi)
+	}
 	return r
 }
 
-// From returns a Range with lower bound lo, inclusive and the same upper bound as r.
+// From returns a Range with lower bound lo, inclusive and the same upper bound as r,
+// if lo is within r's current lower bound. Otherwise, it returns r.
 func (r Range[K, V]) From(lo K) Range[K, V] {
-	r._lo = including(lo)
+	if r.inLo(lo) {
+		r._lo = including(lo)
+	}
 	return r
 }
 
-// Above returns a Range with lower bound lo, exclusive and the same upper bound as r.
+// Above returns a Range with lower bound lo, exclusive and the same upper bound as r,
+// if lo is within r's current lower bound. Otherwise, it returns r.
 func (r Range[K, V]) Above(lo K) Range[K, V] {
-	r._lo = excluding(lo)
+	if r.inLo(lo) {
+		r._lo = excluding(lo)
+	}
 	return r
 }
 
