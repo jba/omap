@@ -633,7 +633,7 @@ func TestKeysRange(t *testing.T) {
 			m := NewMap[int, int](cmp.Compare)
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := Range[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := MapSpan[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for k := range r.Keys() {
 					have = append(have, k)
@@ -686,7 +686,7 @@ func TestValuesRange(t *testing.T) {
 			m := NewMap[int, int](cmp.Compare)
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := Range[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := MapSpan[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for v := range r.Values() {
 					have = append(have, v)
@@ -740,7 +740,7 @@ func Test_backwardKeysRange(t *testing.T) {
 			m := NewMap[int, int](cmp.Compare)
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := Range[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := MapSpan[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for k := range r.backwardKeys() {
 					have = append(have, k)
@@ -795,7 +795,7 @@ func Test_backwardValuesRange(t *testing.T) {
 			m := NewMap[int, int](cmp.Compare)
 			_, slice := permute(m, N)
 			for blo, bhi := range bounds(len(slice)) {
-				r := Range[int, int]{m: m, _lo: blo, _hi: bhi}
+				r := MapSpan[int, int]{m: m, _lo: blo, _hi: bhi}
 				var have []int
 				for v := range r.backwardValues() {
 					have = append(have, v)
@@ -1355,7 +1355,7 @@ func TestRangeCreation(t *testing.T) {
 	t.Run("MapFunc", func(t *testing.T) {
 		m := NewMap[int, int](nil)
 		for _, tc := range []struct {
-			r    Range[int, int]
+			r    MapSpan[int, int]
 			want string
 		}{
 			{m.From(2), "[2, ∞)"},
@@ -1415,7 +1415,7 @@ func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K
 	case *_OMap[K, V]:
 		return _ORange[K, V]{m: m, _lo: lo, _hi: hi}
 	case *Map[K, V]:
-		return Range[K, V]{m: m, _lo: lo, _hi: hi}
+		return MapSpan[K, V]{m: m, _lo: lo, _hi: hi}
 	default:
 		panic("bad map type")
 	}
@@ -1556,87 +1556,87 @@ func TestRangeBounds(t *testing.T) {
 	m := NewMap[int, int](cmp.Compare[int])
 	for _, test := range []struct {
 		name string
-		got  Range[int, int]
+		got  MapSpan[int, int]
 		want string
 	}{
 		{
 			"To1",
-			Range[int, int]{m, inf(), inf()}.To(10),
+			MapSpan[int, int]{m, inf(), inf()}.To(10),
 			"(-∞, 10]",
 		},
 		{
 			"To2",
-			Range[int, int]{m, inf(), including(10)}.To(10),
+			MapSpan[int, int]{m, inf(), including(10)}.To(10),
 			"(-∞, 10]",
 		},
 		{
 			"To3",
-			Range[int, int]{m, inf(), excluding(10)}.To(10),
+			MapSpan[int, int]{m, inf(), excluding(10)}.To(10),
 			"(-∞, 10)",
 		},
 		{
 			"To4",
-			Range[int, int]{m, inf(), including(9)}.To(10),
+			MapSpan[int, int]{m, inf(), including(9)}.To(10),
 			"(-∞, 9]",
 		},
 		{
 			"Below1",
-			Range[int, int]{m, inf(), inf()}.Below(10),
+			MapSpan[int, int]{m, inf(), inf()}.Below(10),
 			"(-∞, 10)",
 		},
 		{
 			"Below2",
-			Range[int, int]{m, inf(), including(10)}.Below(10),
+			MapSpan[int, int]{m, inf(), including(10)}.Below(10),
 			"(-∞, 10)",
 		},
 		{
 			"Below3",
-			Range[int, int]{m, inf(), excluding(10)}.Below(10),
+			MapSpan[int, int]{m, inf(), excluding(10)}.Below(10),
 			"(-∞, 10)",
 		},
 		{
 			"Below4",
-			Range[int, int]{m, inf(), including(9)}.Below(10),
+			MapSpan[int, int]{m, inf(), including(9)}.Below(10),
 			"(-∞, 9]",
 		},
 		{
 			"From1",
-			Range[int, int]{m, inf(), inf()}.From(10),
+			MapSpan[int, int]{m, inf(), inf()}.From(10),
 			"[10, ∞)",
 		},
 		{
 			"From2",
-			Range[int, int]{m, including(10), inf()}.From(10),
+			MapSpan[int, int]{m, including(10), inf()}.From(10),
 			"[10, ∞)",
 		},
 		{
 			"From3",
-			Range[int, int]{m, excluding(10), inf()}.From(10),
+			MapSpan[int, int]{m, excluding(10), inf()}.From(10),
 			"(10, ∞)",
 		},
 		{
 			"From4",
-			Range[int, int]{m, including(11), inf()}.From(10),
+			MapSpan[int, int]{m, including(11), inf()}.From(10),
 			"[11, ∞)",
 		},
 		{
 			"Above1",
-			Range[int, int]{m, inf(), inf()}.Above(10),
+			MapSpan[int, int]{m, inf(), inf()}.Above(10),
 			"(10, ∞)",
 		},
 		{
 			"Above2",
-			Range[int, int]{m, including(10), inf()}.Above(10),
+			MapSpan[int, int]{m, including(10), inf()}.Above(10),
 			"(10, ∞)",
 		},
 		{
 			"Above3",
-			Range[int, int]{m, excluding(10), inf()}.Above(10),
+			MapSpan[int, int]{m, excluding(10), inf()}.Above(10),
 			"(10, ∞)",
 		},
 		{
 			"Above4",
-			Range[int, int]{m, including(11), inf()}.Above(10),
+			MapSpan[int, int]{m, including(11), inf()}.Above(10),
 			"[11, ∞)",
 		},
 	} {
