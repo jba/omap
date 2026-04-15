@@ -3,17 +3,17 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tree_test
+package ordered_test
 
 import (
 	"cmp"
 	"fmt"
 
-	"github.com/jba/omap/tree"
+	"github.com/jba/omap/ordered"
 )
 
 func ExampleMap_All() {
-	m := tree.NewMap[int, string](cmp.Compare)
+	m := ordered.NewMap[int, string](cmp.Compare)
 	m.Set(1, "one")
 	m.Set(2, "two")
 	m.Set(3, "three")
@@ -29,7 +29,7 @@ func ExampleMap_All() {
 }
 
 func ExampleMap_From() {
-	m := tree.NewMap[int, string](cmp.Compare)
+	m := ordered.NewMap[int, string](cmp.Compare)
 	m.Set(1, "one")
 	m.Set(2, "two")
 	m.Set(3, "three")
@@ -44,7 +44,7 @@ func ExampleMap_From() {
 }
 
 func ExampleMap_Below() {
-	m := tree.NewMap[int, string](cmp.Compare)
+	m := ordered.NewMap[int, string](cmp.Compare)
 	m.Set(1, "one")
 	m.Set(2, "two")
 	m.Set(3, "three")

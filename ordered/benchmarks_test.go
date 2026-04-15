@@ -5,7 +5,7 @@
 
 // These benchmarks are based on the ones in github.com/google/btree.
 
-package tree
+package ordered
 
 import (
 	"math/rand/v2"

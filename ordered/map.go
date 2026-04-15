@@ -7,7 +7,7 @@
 
 // Package tree implements an in-memory ordered map using a tree.
 // The map supports arbitrary keys and comparison functions.
-package tree
+package ordered
 
 // The implementation is a treap. See:
 // https://en.wikipedia.org/wiki/Treap
