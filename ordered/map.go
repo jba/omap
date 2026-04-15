@@ -868,19 +868,19 @@ func (m *Map[K, V]) Len() int { return m._root.size() }
 
 // String returns a string representation of m in the form "{k1: v1, k2: v2}".
 func (m *_OMap[K, V]) String() string {
-	return mapString(m)
+	return mapString(m.All())
 }
 
 // String returns a string representation of m in the form "{k1: v1, k2: v2}".
 func (m *Map[K, V]) String() string {
-	return mapString(m)
+	return mapString(m.All())
 }
 
-func mapString[K, V any](m omap[K, V]) string {
+func mapString[K, V any](items iter.Seq2[K, V]) string {
 	var b strings.Builder
 	b.WriteByte('{')
 	first := true
-	for k, v := range all(m) {
+	for k, v := range items {
 		if !first {
 			b.WriteString(", ")
 		}
@@ -1003,33 +1003,33 @@ func excluding[K any](k K) bound[K] {
 	return bound[K]{k, true, false}
 }
 
-func (r _OMapSpan[K, V]) omap() omap[K, V] { return r.m }
+func (s _OMapSpan[K, V]) omap() omap[K, V] { return s.m }
 func (s MapSpan[K, V]) omap() omap[K, V]   { return s.m }
 
-func (r _OMapSpan[K, V]) lo() bound[K] { return r._lo }
+func (s _OMapSpan[K, V]) lo() bound[K] { return s._lo }
 func (s MapSpan[K, V]) lo() bound[K]   { return s._lo }
 
-func (r _OMapSpan[K, V]) hi() bound[K] { return r._hi }
+func (s _OMapSpan[K, V]) hi() bound[K] { return s._hi }
 func (s MapSpan[K, V]) hi() bound[K]   { return s._hi }
 
-func (r _OMapSpan[K, V]) inHi(k K) bool {
-	if !r._hi.present {
+func (s _OMapSpan[K, V]) inHi(k K) bool {
+	if !s._hi.present {
 		return true
 	}
-	if r._hi.inclusive {
-		return k <= r._hi.key
+	if s._hi.inclusive {
+		return k <= s._hi.key
 	}
-	return k < r._hi.key
+	return k < s._hi.key
 }
 
-func (r _OMapSpan[K, V]) inLo(k K) bool {
-	if !r._lo.present {
+func (s _OMapSpan[K, V]) inLo(k K) bool {
+	if !s._lo.present {
 		return true
 	}
-	if r._lo.inclusive {
-		return k >= r._lo.key
+	if s._lo.inclusive {
+		return k >= s._lo.key
 	}
-	return k > r._lo.key
+	return k > s._lo.key
 }
 
 func (s MapSpan[K, V]) inHi(k K) bool {
@@ -1052,32 +1052,32 @@ func (s MapSpan[K, V]) inLo(k K) bool {
 	return s.m.cmp(k, s._lo.key) > 0
 }
 
-// To returns an _OMapSpan with upper bound hi, inclusive and the same lower bound as r.
-func (r _OMapSpan[K, V]) To(hi K) _OMapSpan[K, V] {
-	r._hi = including(hi)
-	return r
+// To returns an _OMapSpan with upper bound hi, inclusive and the same lower bound as s.
+func (s _OMapSpan[K, V]) To(hi K) _OMapSpan[K, V] {
+	s._hi = including(hi)
+	return s
 }
 
-// Below returns an _OMapSpan with upper bound hi, exclusive and the same lower bound as r.
-func (r _OMapSpan[K, V]) Below(hi K) _OMapSpan[K, V] {
-	r._hi = excluding(hi)
-	return r
+// Below returns an _OMapSpan with upper bound hi, exclusive and the same lower bound as s.
+func (s _OMapSpan[K, V]) Below(hi K) _OMapSpan[K, V] {
+	s._hi = excluding(hi)
+	return s
 }
 
-// From returns an _OMapSpan with lower bound lo, inclusive and the same upper bound as r.
-func (r _OMapSpan[K, V]) From(lo K) _OMapSpan[K, V] {
-	r._lo = including(lo)
-	return r
+// From returns an _OMapSpan with lower bound lo, inclusive and the same upper bound as s.
+func (s _OMapSpan[K, V]) From(lo K) _OMapSpan[K, V] {
+	s._lo = including(lo)
+	return s
 }
 
-// Above returns an _OMapSpan with lower bound lo, exclusive and the same upper bound as r.
-func (r _OMapSpan[K, V]) Above(lo K) _OMapSpan[K, V] {
-	r._lo = excluding(lo)
-	return r
+// Above returns an _OMapSpan with lower bound lo, exclusive and the same upper bound as s.
+func (s _OMapSpan[K, V]) Above(lo K) _OMapSpan[K, V] {
+	s._lo = excluding(lo)
+	return s
 }
 
-// To returns a MapSpan with upper bound hi, inclusive and the same lower bound as r,
-// if hi is within r's current upper bound. Otherwise, it returns r.
+// To returns a MapSpan with upper bound hi, inclusive and the same lower bound as s,
+// if hi is within s's current upper bound. Otherwise, it returns s.
 func (s MapSpan[K, V]) To(hi K) MapSpan[K, V] {
 	if s.inHi(hi) {
 		s._hi = including(hi)
@@ -1085,8 +1085,8 @@ func (s MapSpan[K, V]) To(hi K) MapSpan[K, V] {
 	return s
 }
 
-// Below returns a MapSpan with upper bound hi, exclusive and the same lower bound as r,
-// if hi is within r's current upper bound. Otherwise, it returns r.
+// Below returns a MapSpan with upper bound hi, exclusive and the same lower bound as s,
+// if hi is within s's current upper bound. Otherwise, it returns s.
 func (s MapSpan[K, V]) Below(hi K) MapSpan[K, V] {
 	if s.inHi(hi) {
 		s._hi = excluding(hi)
@@ -1094,8 +1094,8 @@ func (s MapSpan[K, V]) Below(hi K) MapSpan[K, V] {
 	return s
 }
 
-// From returns a MapSpan with lower bound lo, inclusive and the same upper bound as r,
-// if lo is within r's current lower bound. Otherwise, it returns r.
+// From returns a MapSpan with lower bound lo, inclusive and the same upper bound as s,
+// if lo is within s's current lower bound. Otherwise, it returns s.
 func (s MapSpan[K, V]) From(lo K) MapSpan[K, V] {
 	if s.inLo(lo) {
 		s._lo = including(lo)
@@ -1103,8 +1103,8 @@ func (s MapSpan[K, V]) From(lo K) MapSpan[K, V] {
 	return s
 }
 
-// Above returns a MapSpan with lower bound lo, exclusive and the same upper bound as r,
-// if lo is within r's current lower bound. Otherwise, it returns r.
+// Above returns a MapSpan with lower bound lo, exclusive and the same upper bound as s,
+// if lo is within s's current lower bound. Otherwise, it returns s.
 func (s MapSpan[K, V]) Above(lo K) MapSpan[K, V] {
 	if s.inLo(lo) {
 		s._lo = excluding(lo)
@@ -1183,6 +1183,14 @@ func rlen[K, V any](r _range[K, V]) int {
 		return 0
 	}
 	return max.rank() - min.rank() + 1
+}
+
+func (s MapSpan[K, V]) String() string {
+	return mapString(s.All())
+}
+
+func (s _OMapSpan[K, V]) String() string {
+	return mapString(s.All())
 }
 
 // Nth returns the key and value at index i within r.

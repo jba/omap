@@ -30,6 +30,7 @@ type Interface[K, V any] interface {
 	Nth(int) (K, V)
 	SetAll(iter.Seq2[K, V]) bool
 	DeleteAll(iter.Seq[K]) bool
+	String() string
 
 	root() **node[K, V]
 }
@@ -267,7 +268,7 @@ func TestMinRange(t *testing.T) {
 			for blo, bhi := range bounds(N) {
 				m := newMap()
 				_, slice := permute(m, N)
-				r := newRange(m, blo, bhi)
+				r := newMapSpan(m, blo, bhi)
 				haveKey, haveVal, ok := r.Min()
 				wantKey := 0
 				wantVal := 0
@@ -295,7 +296,7 @@ func TestMaxRange(t *testing.T) {
 			for blo, bhi := range bounds(N) {
 				m := newMap()
 				_, slice := permute(m, N)
-				r := newRange(m, blo, bhi)
+				r := newMapSpan(m, blo, bhi)
 				haveKey, haveVal, ok := r.Max()
 				wantKey := 0
 				wantVal := 0
@@ -535,7 +536,7 @@ func TestAllRange(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
 		check := func(m Interface[int, int], slice []int, blo, bhi bound[int]) {
 			var have []int
-			r := newRange(m, blo, bhi)
+			r := newMapSpan(m, blo, bhi)
 			for k, v := range r.All() {
 				if v != slice[k] {
 					t.Errorf("All() returned %d, %d want %d, %d", k, v, k, slice[k])
@@ -570,7 +571,7 @@ func TestBackwardRange(t *testing.T) {
 	test(t, func(t *testing.T, newMap func() Interface[int, int]) {
 		check := func(m Interface[int, int], slice []int, blo, bhi bound[int]) {
 			var have []int
-			r := newRange(m, blo, bhi)
+			r := newMapSpan(m, blo, bhi)
 			for k, v := range r.Backward() {
 				if v != slice[k] {
 					t.Errorf("Backward(%s) returned %d, %d want %d, %d", r, k, v, k, slice[k])
@@ -894,12 +895,12 @@ func TestDeleteRange(t *testing.T) {
 		check := func(N int, blo, bhi bound[int], clearReverse bool) {
 			t.Helper()
 			m := newMap()
-			r := newRange(m, blo, bhi)
+			r := newMapSpan(m, blo, bhi)
 			_, slice := permute(m, N)
 			if clearReverse {
-				newRange(m, bhi, blo).Clear()
+				newMapSpan(m, bhi, blo).Clear()
 			}
-			newRange(m, blo, bhi).Clear()
+			newMapSpan(m, blo, bhi).Clear()
 			var have []int
 			for k := range m.All() {
 				have = append(have, k)
@@ -985,7 +986,7 @@ func clearRange(m Interface[int, int], forwards bool, k, target int, mode string
 			deleteLo = math.MinInt
 			deleteHi = math.MaxInt - 1
 		}
-		newRange(m, including(deleteLo), including(deleteHi)).Clear()
+		newMapSpan(m, including(deleteLo), including(deleteHi)).Clear()
 		var lo, hi int
 		if forwards {
 			lo = max(deleteLo, k+1)
@@ -1410,7 +1411,7 @@ func rdump[K, V any](ir iRange[K, V]) string {
 	return b.String()
 }
 
-func newRange[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
+func newMapSpan[K cmp.Ordered, V any](m Interface[K, V], lo, hi bound[K]) iRange[K, V] {
 	switch m := m.(type) {
 	case *_OMap[K, V]:
 		return _OMapSpan[K, V]{m: m, _lo: lo, _hi: hi}
@@ -1453,7 +1454,7 @@ func bounds(n int) iter.Seq2[bound[int], bound[int]] {
 func TestBounds(t *testing.T) {
 	got := map[string]bool{}
 	for blo, bhi := range bounds(2) {
-		got[rdump(newRange(&_OMap[int, int]{}, blo, bhi))] = true
+		got[rdump(newMapSpan(&_OMap[int, int]{}, blo, bhi))] = true
 	}
 	wants := []string{
 		"(0, 0)",
@@ -1531,19 +1532,19 @@ func TestIn(t *testing.T) {
 	t.Log(keep(slice, func(k int) bool { return !in(k, blo, bhi) }))
 }
 
-func TestRangeString(t *testing.T) {
+func TestRdump(t *testing.T) {
 	m := newMap(nil)
 	for _, test := range []struct {
 		r    iRange[int, int]
 		want string
 	}{
-		{newRange(m, inf(), inf()), "(-∞, ∞)"},
-		{newRange(m, including(1), inf()), "[1, ∞)"},
-		{newRange(m, inf(), excluding(3)), "(-∞, 3)"},
-		{newRange(m, including(1), including(3)), "[1, 3]"},
-		{newRange(m, including(1), excluding(3)), "[1, 3)"},
-		{newRange(m, excluding(1), including(3)), "(1, 3]"},
-		{newRange(m, excluding(1), excluding(3)), "(1, 3)"},
+		{newMapSpan(m, inf(), inf()), "(-∞, ∞)"},
+		{newMapSpan(m, including(1), inf()), "[1, ∞)"},
+		{newMapSpan(m, inf(), excluding(3)), "(-∞, 3)"},
+		{newMapSpan(m, including(1), including(3)), "[1, 3]"},
+		{newMapSpan(m, including(1), excluding(3)), "[1, 3)"},
+		{newMapSpan(m, excluding(1), including(3)), "(1, 3]"},
+		{newMapSpan(m, excluding(1), excluding(3)), "(1, 3)"},
 	} {
 		got := rdump[int, int](test.r)
 		if got != test.want {
@@ -1646,6 +1647,51 @@ func TestRangeBounds(t *testing.T) {
 				t.Errorf("got %s, want %s", got, test.want)
 			}
 		})
+	}
+}
+
+func TestString(t *testing.T) {
+	// Map and _OMap
+	for _, m := range []Interface[int, string]{
+		NewMap[int, string](cmp.Compare),
+		new(_OMap[int, string]),
+	} {
+		if got, want := m.String(), "{}"; got != want {
+			t.Errorf("%T.String() = %q, want %q", m, got, want)
+		}
+		m.Set(1, "one")
+		m.Set(2, "two")
+		if got, want := m.String(), "{1: one, 2: two}"; got != want {
+			t.Errorf("%T.String() = %q, want %q", m, got, want)
+		}
+	}
+
+	// MapSpan and _OMapSpan
+	mm := NewMap[int, string](cmp.Compare)
+	mm.Set(1, "one")
+	mm.Set(2, "two")
+	mm.Set(3, "three")
+
+	om := new(_OMap[int, string])
+	om.Set(1, "one")
+	om.Set(2, "two")
+	om.Set(3, "three")
+
+	for _, test := range []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"MapSpanEmpty", mm.Above(3).String(), "{}"},
+		{"MapSpanOne", mm.From(2).To(2).String(), "{2: two}"},
+		{"MapSpanFull", mm.From(-1).To(10).String(), "{1: one, 2: two, 3: three}"},
+		{"_OMapSpanEmpty", om.Above(3).String(), "{}"},
+		{"_OMapSpanOne", om.From(2).To(2).String(), "{2: two}"},
+		{"_OMapSpanFull", om.From(-1).To(10).String(), "{1: one, 2: two, 3: three}"},
+	} {
+		if test.got != test.want {
+			t.Errorf("%s = %q, want %q", test.name, test.got, test.want)
+		}
 	}
 }
 
