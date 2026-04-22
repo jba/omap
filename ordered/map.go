@@ -5,8 +5,8 @@
 
 // TODO: rewrite deleteRange to avoid insertions.
 
-// Package tree implements an in-memory ordered map using a tree.
-// The map supports arbitrary keys and comparison functions.
+// Package ordered implements an in-memory map whose
+// keys are ordered.
 package ordered
 
 // The implementation is a treap. See:
@@ -28,9 +28,9 @@ type _OMap[K cmp.Ordered, V any] struct {
 	_gen  uint64
 }
 
-// A Map is a map[K]V ordered according to an arbitrary comparison function.
-// The zero value of a Map is not meaningful since it has no comparison function.
-// Use [NewMap] to create a [Map].
+// A Map is a mapping from keys to values, where the keys are ordered according to
+// an arbitrary comparison function.
+// The zero value of a Map is not meaningful since it has no comparison function. Use [NewMap] to create a [Map].
 // A nil *Map, like a nil Go map, can be read but not written and contains no entries.
 type Map[K, V any] struct {
 	_root *node[K, V]
@@ -49,7 +49,7 @@ type node[K any, V any] struct {
 	_size  int // number of keys in this node's subtree
 }
 
-// NewMap returns a new MapFunc[K, V] ordered according to cmp.
+// NewMap returns a new Map[K, V] ordered according to cmp.
 func NewMap[K, V any](cmp func(K, K) int) *Map[K, V] {
 	return &Map[K, V]{cmp: cmp}
 }
@@ -259,7 +259,8 @@ func rotateUp[K, V any](m omap[K, V], x *node[K, V]) {
 }
 
 // Delete removes the entry with the given key, if present.
-// It reports whether the map changed, and returns the previous value, if any.
+// It reports whether the map changed, and returns the previous value,
+// or the zero value if there isn't one.
 func (m *_OMap[K, V]) Delete(key K) (V, bool) {
 	return _delete(m, key)
 }
@@ -897,6 +898,7 @@ func (m *_OMap[K, V]) Nth(i int) (K, V) { return m._root.nth(i) }
 
 // Nth returns the key and value at index i.
 // It panics if i < 0 or i >= m.Len().
+// See [Map.Index] for the inverse operation.
 func (m *Map[K, V]) Nth(i int) (K, V) { return m._root.nth(i) }
 
 // Index returns the index of key in m, or -1 if key is not present.
@@ -912,6 +914,10 @@ func (m *_OMap[K, V]) Index(key K) int {
 }
 
 // Index returns the index of key in m, or -1 if key is not present.
+// The index of a key is its position in the sequence of keys.
+// For example, the smallest key has index 0,
+// and the largest has index m.Len()-1.
+// See [Map.Nth] for the inverse operation.
 func (m *Map[K, V]) Index(key K) int {
 	if m._root == nil {
 		return -1
@@ -1116,7 +1122,7 @@ func (s MapSpan[K, V]) Above(lo K) MapSpan[K, V] {
 // If m is empty, the third return value is false.
 func (r _OMapSpan[K, V]) Min() (K, V, bool) { return rmin(r) }
 
-// Min returns the minimum key from r's underlying map that is in r, its value, and true.
+// Min returns the minimum key from s's underlying map that is in s, its value, and true.
 // If m is empty, the third return value is false.
 func (s MapSpan[K, V]) Min() (K, V, bool) { return rmin(s) }
 
@@ -1157,20 +1163,20 @@ func minNode[K, V any](r _range[K, V]) *node[K, V] {
 // If m is empty, the third return value is false.
 func (r _OMapSpan[K, V]) Max() (K, V, bool) { return rmax(r) }
 
-// Max returns the maximum key from r's underlying map that is in r, its value, and true.
+// Max returns the maximum key from r's underlying map that is in s, its value, and true.
 // If m is empty, the third return value is false.
 func (s MapSpan[K, V]) Max() (K, V, bool) { return rmax(s) }
 
 // Index returns the index of key within r, or -1 if key is not present or not in bounds.
 func (r _OMapSpan[K, V]) Index(key K) int { return rindex(r, key) }
 
-// Index returns the index of key within r, or -1 if key is not present or not in bounds.
+// Index returns the index of key within s, or -1 if key is not present or not in bounds.
 func (s MapSpan[K, V]) Index(key K) int { return rindex(s, key) }
 
 // Len returns the number of keys in r.
 func (r _OMapSpan[K, V]) Len() int { return rlen(r) }
 
-// Len returns the number of keys in r.
+// Len returns the number of keys in s.
 func (s MapSpan[K, V]) Len() int { return rlen(s) }
 
 func rlen[K, V any](r _range[K, V]) int {
@@ -1197,8 +1203,8 @@ func (s _OMapSpan[K, V]) String() string {
 // It panics if i < 0 or i >= r.Len().
 func (r _OMapSpan[K, V]) Nth(i int) (K, V) { return rnth(r, i) }
 
-// Nth returns the key and value at index i within r.
-// It panics if i < 0 or i >= r.Len().
+// Nth returns the key and value at index i within s.
+// It panics if i < 0 or i >= s.Len().
 func (s MapSpan[K, V]) Nth(i int) (K, V) { return rnth(s, i) }
 
 func rnth[K, V any](r _range[K, V], i int) (K, V) {
@@ -1218,7 +1224,7 @@ func (r _OMapSpan[K, V]) Clone() *_OMap[K, V] {
 	return m
 }
 
-// Clone returns a new Map containing only the keys in r.
+// Clone returns a new Map containing only the keys in s.
 func (s MapSpan[K, V]) Clone() *Map[K, V] {
 	m := NewMap[K, V](s.m.cmp)
 	for k, v := range s.All() {
@@ -1281,7 +1287,7 @@ func (r _OMapSpan[K, V]) Clear() {
 	r.m._gen++
 }
 
-// Clear deletes all the entries in r from r's underlying map.
+// Clear deletes all the entries in s from s's underlying map.
 func (s MapSpan[K, V]) Clear() {
 	deleteRange(s.m, s.lo(), s.hi())
 	s.m._gen++
@@ -1291,7 +1297,7 @@ func (s MapSpan[K, V]) Clear() {
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r _OMapSpan[K, V]) All() iter.Seq2[K, V] { return rall(r) }
 
-// All returns an iterator over r's underlying map from smallest to largest key in r.
+// All returns an iterator over s's underlying map from smallest to largest key in s.
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (s MapSpan[K, V]) All() iter.Seq2[K, V] { return rall(s) }
 
@@ -1323,7 +1329,7 @@ func rall[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r _OMapSpan[K, V]) Keys() iter.Seq[K] { return rkeys(r) }
 
-// Keys returns an iterator over the keys in r from smallest to largest.
+// Keys returns an iterator over the keys in s from smallest to largest.
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (s MapSpan[K, V]) Keys() iter.Seq[K] { return rkeys(s) }
 
@@ -1355,7 +1361,7 @@ func rkeys[K, V any](r _range[K, V]) iter.Seq[K] {
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r _OMapSpan[K, V]) Values() iter.Seq[V] { return rvalues(r) }
 
-// Values returns an iterator over the values in r from smallest to largest key.
+// Values returns an iterator over the values in s from smallest to largest key.
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (s MapSpan[K, V]) Values() iter.Seq[V] { return rvalues(s) }
 
@@ -1387,7 +1393,7 @@ func rvalues[K, V any](r _range[K, V]) iter.Seq[V] {
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r _OMapSpan[K, V]) Backward() iter.Seq2[K, V] { return rbackward(r) }
 
-// Backward returns an iterator over r's underlying map from largest to smallest key in r.
+// Backward returns an iterator over s's underlying map from largest to smallest key in s.
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (s MapSpan[K, V]) Backward() iter.Seq2[K, V] { return rbackward(s) }
 
@@ -1419,7 +1425,7 @@ func rbackward[K, V any](r _range[K, V]) iter.Seq2[K, V] {
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r _OMapSpan[K, V]) backwardKeys() iter.Seq[K] { return rbackwardKeys(r) }
 
-// backwardKeys returns an iterator over the keys in r from largest to smallest.
+// backwardKeys returns an iterator over the keys in s from largest to smallest.
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (s MapSpan[K, V]) backwardKeys() iter.Seq[K] { return rbackwardKeys(s) }
 
@@ -1451,7 +1457,7 @@ func rbackwardKeys[K, V any](r _range[K, V]) iter.Seq[K] {
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (r _OMapSpan[K, V]) backwardValues() iter.Seq[V] { return rbackwardValues(r) }
 
-// backwardValues returns an iterator over the values in r from largest to smallest key.
+// backwardValues returns an iterator over the values in s from largest to smallest key.
 // See [Map.All] for the guarantee provided if m is modified during the iteration.
 func (s MapSpan[K, V]) backwardValues() iter.Seq[V] { return rbackwardValues(s) }
 
