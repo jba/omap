@@ -206,6 +206,47 @@ func TestDeleteAll(t *testing.T) {
 	})
 }
 
+func TestDeleteFunc(t *testing.T) {
+	m := NewMap[int, int](cmp.Compare)
+	m.SetAll(slices.All([]int{1, 2, 3, 4, 5})) // keys 0..4, values 1..5
+
+	// Delete even values
+	gotb := m.DeleteFunc(func(k, v int) bool {
+		return v%2 == 0
+	})
+	if !gotb {
+		t.Fatal("got false, want true")
+	}
+
+	got := toMap(m)
+	want := map[int]int{0: 1, 2: 3, 4: 5}
+	if !maps.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+
+	// Delete remaining where key > 2
+	gotb = m.DeleteFunc(func(k, v int) bool {
+		return k > 2
+	})
+	if !gotb {
+		t.Fatal("got false, want true")
+	}
+
+	got = toMap(m)
+	want = map[int]int{0: 1, 2: 3}
+	if !maps.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+
+	// Delete none
+	gotb = m.DeleteFunc(func(k, v int) bool {
+		return false
+	})
+	if gotb {
+		t.Fatal("got true, want false")
+	}
+}
+
 func toMap(in Interface[int, int]) map[int]int {
 	out := map[int]int{}
 	for k, v := range in.All() {

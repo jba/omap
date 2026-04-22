@@ -322,6 +322,20 @@ func (m *Map[K, V]) DeleteAll(keys iter.Seq[K]) bool {
 	return _deleteAll(m, keys)
 }
 
+// DeleteFunc removes all the entries for which f returns true.
+// It reports whether the map changed.
+func (m *Map[K, V]) DeleteFunc(f func(K, V) bool) bool {
+	changed := false
+	for k, v := range m.All() {
+		if f(k, v) {
+			if _, ok := m.Delete(k); ok {
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
 func _deleteAll[K, V any](m omap[K, V], seq iter.Seq[K]) bool {
 	changed := false
 	for k := range seq {
